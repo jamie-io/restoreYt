@@ -1,0 +1,23 @@
+{
+  "name": "deslopify",
+  "version": "1.0.0",
+  "description": "Remove AI auto-translated titles, thumbnails, descriptions, and audio from YouTube",
+  "author": "Jamie",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "lint": "eslint src/ tests/",
+    "build": "echo 'No build step needed - load unpacked from root'"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.1",
+    "@playwright/test": "^1.52.0",
+    "eslint": "^9.27.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

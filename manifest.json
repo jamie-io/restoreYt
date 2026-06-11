@@ -1,0 +1,68 @@
+{
+  "manifest_version": 3,
+  "name": "Deslopify",
+  "author": "Jamie",
+  "version": "1.0.0",
+  "description": "Remove AI auto-translated titles, thumbnails, descriptions, and audio from YouTube",
+  "permissions": [
+    "declarativeNetRequest",
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.youtube.com/*",
+    "*://*.youtube-nocookie.com/*",
+    "*://i.ytimg.com/*",
+    "*://img.youtube.com/*"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ruleset_1",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*", "*://*.youtube-nocookie.com/*"],
+      "js": ["src/content/inject.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/lib/cache.js",
+        "src/lib/settings.js",
+        "src/lib/api.js",
+        "src/lib/dom.js",
+        "src/content/title.js",
+        "src/content/thumbnail.js",
+        "src/content/description.js",
+        "src/content/audio.js",
+        "src/content/channel.js"
+      ],
+      "matches": ["*://*.youtube.com/*", "*://*.youtube-nocookie.com/*"]
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "Deslopify",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
