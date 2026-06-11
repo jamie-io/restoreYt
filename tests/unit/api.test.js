@@ -66,7 +66,8 @@ describe('DeslopifyAPI.getVideoDetails', () => {
         thumbnail: {
           thumbnails: [{ url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg' }]
         },
-        lengthSeconds: '300'
+        lengthSeconds: '300',
+        shortDescription: 'Original description text'
       }
     };
 
@@ -81,7 +82,8 @@ describe('DeslopifyAPI.getVideoDetails', () => {
       author: 'Channel Name',
       channelId: 'UC123',
       thumbnailUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
-      lengthSeconds: '300'
+      lengthSeconds: '300',
+      shortDescription: 'Original description text'
     });
   });
 

@@ -11,7 +11,8 @@
   }
 
   const PROCESSED = new WeakSet();
-  const titleCache = new Map();
+
+  const WHITELIST = window.__DESLOPIFY_WHITELIST__ || [];
 
   const TITLE_SELECTORS = [
     '#title > h1 > yt-formatted-string',
@@ -24,14 +25,6 @@
     '#player-controls a.ytmVideoInfoVideoTitle span',
     'ytd-video-description-header-renderer .title span'
   ];
-
-  function getTitleElement(root) {
-    for (const selector of TITLE_SELECTORS) {
-      const el = root.querySelector(selector);
-      if (el && el.textContent?.trim()) return el;
-    }
-    return null;
-  }
 
   function getVideoIdForElement(titleEl) {
     const linkEl = titleEl.closest('a[href]') || titleEl.querySelector('a[href]');
@@ -58,6 +51,10 @@
     if (originalTitle === undefined) {
       const details = await api.getVideoDetails(videoId);
       originalTitle = details?.title || null;
+      if (details?.channelId && WHITELIST.includes(details.channelId)) {
+        cache.set(cacheKey, null);
+        return;
+      }
       cache.set(cacheKey, originalTitle);
     }
 
@@ -86,7 +83,7 @@
     }
   }
 
-  const debouncedProcess = dom.debounce(processVisibleTitles, 100);
+  const debouncedProcess = dom.debounce(processVisibleTitles, 90);
 
   if (document.body) {
     dom.createObserver(debouncedProcess);

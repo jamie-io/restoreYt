@@ -36,7 +36,7 @@
     const originalAddEventListener = video.addEventListener.bind(video);
 
     video.addEventListener = function (type, listener, options) {
-      if (type === 'audiotrackchange' || type === 'audio-track-change') {
+      if (type === 'audiotrackchange') {
         const wrappedListener = function (event) {
           if (originalAudioTrack && event.track) {
             if (event.track.language !== originalAudioTrack.language) {

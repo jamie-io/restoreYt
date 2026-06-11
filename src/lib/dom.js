@@ -67,11 +67,16 @@ const DeslopifyDOM = (() => {
 
   function replaceTextOnly(element, text) {
     if (!element) return;
-    for (const node of Array.from(element.childNodes)) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        node.textContent = text;
-        break;
+    const textNodes = Array.from(element.childNodes).filter(n => n.nodeType === Node.TEXT_NODE);
+    if (textNodes.length === 0) {
+      if (element.childNodes.length === 0) {
+        element.textContent = text;
       }
+      return;
+    }
+    textNodes[0].textContent = text;
+    for (let i = 1; i < textNodes.length; i++) {
+      textNodes[i].textContent = '';
     }
   }
 

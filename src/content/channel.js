@@ -37,6 +37,20 @@
     return null;
   }
 
+  function getChannelTitleElement() {
+    const selectors = [
+      '#channel-header ytd-channel-name yt-formatted-string',
+      '#page-header ytd-channel-name yt-formatted-string',
+      'yt-page-header-renderer ytd-channel-name yt-formatted-string',
+      '#channel-header #channel-title'
+    ];
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el && el.textContent?.trim()) return el;
+    }
+    return null;
+  }
+
   async function restoreChannelBranding() {
     const channelId = getChannelId();
     if (!channelId) return;
@@ -52,7 +66,15 @@
       cache.set(cacheKey, channelDetails);
     }
 
-    if (!channelDetails) return;
+    if (!channelDetails || !channelDetails.title) return;
+
+    const titleEl = getChannelTitleElement();
+    if (titleEl) {
+      const currentTitle = titleEl.textContent?.trim();
+      if (currentTitle && currentTitle !== channelDetails.title) {
+        dom.replaceTextOnly(titleEl, channelDetails.title);
+      }
+    }
 
     PROCESSED.add(header);
   }

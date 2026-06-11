@@ -9,6 +9,8 @@ const DeslopifyAPI = (() => {
     return isMobile() ? 'MWEB' : 'WEB';
   }
 
+  const CLIENT_HEADER_MAP = { 'WEB': '1', 'MWEB': '2' };
+
   function getClientVersion() {
     return '2.20250731.09.00';
   }
@@ -54,7 +56,7 @@ const DeslopifyAPI = (() => {
       if (sapisidhash) {
         headers['Authorization'] = sapisidhash;
         headers['Origin'] = getOrigin();
-        headers['X-Youtube-Client-Name'] = '1';
+        headers['X-Youtube-Client-Name'] = CLIENT_HEADER_MAP[getClientName()] || '1';
         headers['X-Youtube-Client-Version'] = getClientVersion();
       }
     }
@@ -141,7 +143,8 @@ const DeslopifyAPI = (() => {
       author: details.author || null,
       channelId: details.channelId || null,
       thumbnailUrl,
-      lengthSeconds: details.lengthSeconds || null
+      lengthSeconds: details.lengthSeconds || null,
+      shortDescription: details.shortDescription || null
     };
   }
 

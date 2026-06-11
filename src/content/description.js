@@ -17,12 +17,6 @@
     return api.extractVideoId(window.location.href);
   }
 
-  function getVideoIdFromPlayer() {
-    const playerLink = document.querySelector('.ytp-title-link');
-    if (playerLink) return api.extractVideoId(playerLink.href);
-    return null;
-  }
-
   function getDescriptionContainer() {
     const selectors = [
       '#description-inline-expander',
@@ -52,6 +46,20 @@
     return null;
   }
 
+  function findDescriptionTextContainer() {
+    const selectors = [
+      '#description-inline-expander #description-text',
+      '#description yt-attributed-string',
+      '#description .ytd-video-description-body-renderer',
+      '#description span[slot="content"]'
+    ];
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el) return el;
+    }
+    return null;
+  }
+
   async function replaceDescription(videoId) {
     const container = getDescriptionContainer();
     if (!container || PROCESSED.has(container)) return;
@@ -64,16 +72,23 @@
       cache.set(cacheKey, details);
     }
 
-    if (!details) return;
+    if (!details || !details.shortDescription) return;
+
+    const textContainer = findDescriptionTextContainer();
+    if (!textContainer) return;
+
+    const currentText = textContainer.textContent?.trim();
+    if (currentText === details.shortDescription) return;
 
     PROCESSED.add(container);
+    dom.replaceTextOnly(textContainer, details.shortDescription);
   }
 
   async function replaceChapters(videoId) {
     const container = getChaptersContainer();
     if (!container || PROCESSED.has(container)) return;
 
-    const cacheKey = `chapters:${videoId}`;
+    const cacheKey = `desc:${videoId}`;
     let details = cache.get(cacheKey);
 
     if (!details) {
@@ -81,7 +96,7 @@
       cache.set(cacheKey, details);
     }
 
-    if (!details) return;
+    if (!details || !details.shortDescription) return;
 
     PROCESSED.add(container);
   }

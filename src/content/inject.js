@@ -29,24 +29,27 @@
     });
   }
 
-  await injectScript('src/lib/cache.js');
-  await injectScript('src/lib/settings.js');
-  await injectScript('src/lib/api.js');
-  await injectScript('src/lib/dom.js');
+  function injectWhitelist(channels) {
+    const script = document.createElement('script');
+    script.textContent = `window.__DESLOPIFY_WHITELIST__ = ${JSON.stringify(channels)};`;
+    (document.head || document.documentElement).appendChild(script);
+  }
 
-  if (settings.untranslateTitle) {
-    await injectScript('src/content/title.js');
-  }
-  if (settings.untranslateThumbnail) {
-    await injectScript('src/content/thumbnail.js');
-  }
-  if (settings.untranslateDescription || settings.untranslateChapters) {
-    await injectScript('src/content/description.js');
-  }
-  if (settings.untranslateAudio) {
-    await injectScript('src/content/audio.js');
-  }
-  if (settings.untranslateChannelBranding) {
-    await injectScript('src/content/channel.js');
-  }
+  await Promise.all([
+    injectScript('src/lib/cache.js'),
+    injectScript('src/lib/settings.js'),
+    injectScript('src/lib/api.js'),
+    injectScript('src/lib/dom.js')
+  ]);
+
+  injectWhitelist(settings.whitelistChannels);
+
+  const features = [];
+  if (settings.untranslateTitle) features.push(injectScript('src/content/title.js'));
+  if (settings.untranslateThumbnail) features.push(injectScript('src/content/thumbnail.js'));
+  if (settings.untranslateDescription || settings.untranslateChapters) features.push(injectScript('src/content/description.js'));
+  if (settings.untranslateAudio) features.push(injectScript('src/content/audio.js'));
+  if (settings.untranslateChannelBranding) features.push(injectScript('src/content/channel.js'));
+
+  await Promise.all(features);
 })();

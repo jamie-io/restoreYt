@@ -3,6 +3,7 @@
 
   const api = window.DeslopifyAPI;
   const dom = window.DeslopifyDOM;
+  const cache = window.DeslopifyCache;
 
   if (!api || !dom) {
     console.warn('[Deslopify] thumbnail.js: Missing dependencies');
@@ -10,6 +11,7 @@
   }
 
   const PROCESSED = new WeakSet();
+  const WHITELIST = window.__DESLOPIFY_WHITELIST__ || [];
 
   function getCleanThumbnailUrl(videoId) {
     return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
@@ -28,12 +30,29 @@
     return false;
   }
 
+  async function isChannelWhitelisted(videoId) {
+    if (!WHITELIST.length) return false;
+    const cacheKey = `th_ch:${videoId}`;
+    let channelId = cache?.get(cacheKey);
+    if (channelId === undefined) {
+      const details = await api.getVideoDetails(videoId);
+      channelId = details?.channelId || null;
+      cache?.set(cacheKey, channelId);
+    }
+    return channelId && WHITELIST.includes(channelId);
+  }
+
   async function replaceThumbnail(img) {
     if (!img || PROCESSED.has(img)) return;
 
     const src = img.src || img.getAttribute('data-src') || '';
     const videoId = api.extractVideoId(src);
     if (!videoId) return;
+
+    if (await isChannelWhitelisted(videoId)) {
+      PROCESSED.add(img);
+      return;
+    }
 
     const cleanUrl = getCleanThumbnailUrl(videoId);
 
@@ -52,7 +71,7 @@
     }
   }
 
-  const debouncedProcess = dom.debounce(processVisibleThumbnails, 100);
+  const debouncedProcess = dom.debounce(processVisibleThumbnails, 90);
 
   if (document.body) {
     dom.createObserver(debouncedProcess);
