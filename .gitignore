@@ -1,7 +1,83 @@
+# Node.js
 node_modules/
-_metadata/
-.env
+.npm
+.npmrc
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# IDE
 .vscode/
 .idea/
-*.log
+*.swp
+*.swo
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test artifacts
+playwright-results/
+test-results/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Build artifacts
+.dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Cache
+*~
+*.bak
+*.tmp
+
+# Extension specific
+*.crx
+*.pem
+.icons
+
+# Temporary files
+*.temp
+*.backup
+
+# Runtime data
+data/
+
+# macOS
+.DS_Store
+.AppleDouble
+Let'sEncrypt
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Others
+*.log
+tmp/
+logs/
+*.swp
+
+# Yarn
+.yarn-integrity
+.pnp.*
+
+# .env files
+.env
+.env.*
+!.env.example

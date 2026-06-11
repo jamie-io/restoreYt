@@ -1,4 +1,14 @@
+/**
+ * DOM manipulation utilities for Deslopify.
+ * Provides safe DOM operations, event handling, and element detection.
+ */
 const DeslopifyDOM = (() => {
+  /**
+   * Check if an element is visible on screen
+   * @param {Element} element - DOM element to check
+   * @param {boolean} checkViewport - Whether to check if element is in viewport
+   * @returns {boolean} True if element is visible
+   */
   function isVisible(element, checkViewport = true) {
     if (!element || element.nodeType !== Node.ELEMENT_NODE) return false;
 
@@ -31,6 +41,12 @@ const DeslopifyDOM = (() => {
     return true;
   }
 
+  /**
+   * Create a debounced function to limit execution frequency
+   * @param {Function} fn - Function to debounce
+   * @param {number} waitMs - Debounce delay in milliseconds
+   * @returns {Function} Debounced function
+   */
   function debounce(fn, waitMs = 90) {
     let timer = null;
     return function (...args) {
@@ -39,6 +55,12 @@ const DeslopifyDOM = (() => {
     };
   }
 
+  /**
+   * Create a MutationObserver with debounced callback
+   * @param {Function} callback - Observer callback function
+   * @param {Object} options - Observer options
+   * @returns {MutationObserver} Observer instance
+   */
   function createObserver(callback, options = {}) {
     const defaultOptions = {
       childList: true,
@@ -49,6 +71,11 @@ const DeslopifyDOM = (() => {
     return observer;
   }
 
+  /**
+   * Extract video ID from a DOM element
+   * @param {Element} element - DOM element to search
+   * @returns {string|null} Video ID or null if not found
+   */
   function extractVideoIdFromElement(element) {
     if (!element) return null;
 
@@ -65,6 +92,11 @@ const DeslopifyDOM = (() => {
     return null;
   }
 
+  /**
+   * Replace text content of an element
+   * @param {Element} element - DOM element
+   * @param {string} text - New text content
+   */
   function replaceTextOnly(element, text) {
     if (!element) return;
     const textNodes = Array.from(element.childNodes).filter(n => n.nodeType === Node.TEXT_NODE);

@@ -1,33 +1,70 @@
+/**
+ * YouTube API client for fetching video and channel details.
+ * Uses YouTube's InnerTube API with SAPISID authentication.
+ */
 const DeslopifyAPI = (() => {
+  /**
+   * Active API requests to prevent duplicates
+   * @type {Map<string, Promise<unknown>>}
+   */
   const PENDING = new Map();
 
+  /**
+   * Check if the current page is YouTube mobile
+   * @returns {boolean} True if on mobile YouTube
+   */
   function isMobile() {
     return window.location.hostname === 'm.youtube.com';
   }
 
+  /**
+   * Get the client name for API requests
+   * @returns {'WEB'|'MWEB'} Client identifier
+   */
   function getClientName() {
     return isMobile() ? 'MWEB' : 'WEB';
   }
 
   const CLIENT_HEADER_MAP = { 'WEB': '1', 'MWEB': '2' };
 
+  /**
+   * Get the client version for API requests
+   * @returns {string} Client version string
+   */
   function getClientVersion() {
     return '2.20250731.09.00';
   }
 
+  /**
+   * Get the API origin based on mobile detection
+   * @returns {string} YouTube origin URL
+   */
   function getOrigin() {
     return isMobile() ? 'https://m.youtube.com' : 'https://www.youtube.com';
   }
 
+  /**
+   * Get the API host based on mobile detection
+   * @returns {string} YouTube API host
+   */
   function getApiHost() {
     return isMobile() ? 'm.youtube.com' : 'www.youtube.com';
   }
 
+  /**
+   * Extract SAPISID from cookies for authentication
+   * @returns {string|null} SAPISID cookie value or null if not found
+   */
   function getSAPISID() {
     const match = document.cookie.match(/SAPISID=([^\s;]+)/);
     return match ? match[1] : null;
   }
 
+  /**
+   * Create SHA-1 hash for SAPISID
+   * @param {string} msg - Message to hash
+   * @returns {Promise<string>} SHA-1 hash as hex string
+   */
   async function sha1Hash(msg) {
     const encoder = new TextEncoder();
     const data = encoder.encode(msg);
@@ -36,6 +73,10 @@ const DeslopifyAPI = (() => {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
+  /**
+   * Get SAPISID hash for API authentication
+   * @returns {Promise<string|null>} SAPISID hash or null if no SAPISID
+   */
   async function getSAPISIDHash() {
     const sapisid = getSAPISID();
     if (!sapisid) return null;
@@ -46,6 +87,11 @@ const DeslopifyAPI = (() => {
     return `SAPISIDHASH ${timestamp}_${hash}`;
   }
 
+  /**
+   * Get request headers for API calls
+   * @param {boolean} withAuth - Whether to include authentication headers
+   * @returns {Promise<Object>} Request headers object
+   */
   async function getHeaders(withAuth = true) {
     const headers = {
       'Content-Type': 'application/json'
@@ -64,6 +110,14 @@ const DeslopifyAPI = (() => {
     return headers;
   }
 
+  /**
+   * Make cached API requests, preventing duplicate requests
+   * @param {string} url - API endpoint URL
+   * @param {Object|null} postData - Request body data
+   * @param {Object|null} headers - Request headers
+   * @param {string|null} cacheKey - Cache key for response
+   * @returns {Promise<unknown>} API response data or null on failure
+   */
   async function cachedRequest(url, postData = null, headers = null, cacheKey = null) {
     if (cacheKey) {
       const cached = window.DeslopifyCache?.get(cacheKey);
@@ -103,6 +157,11 @@ const DeslopifyAPI = (() => {
     return promise;
   }
 
+  /**
+   * Fetch video details from YouTube API
+   * @param {string} videoId - YouTube video ID
+   * @returns {Promise<Object|null>} Video details object or null on failure
+   */
   async function getVideoDetails(videoId) {
     if (!videoId) return null;
 
@@ -148,6 +207,11 @@ const DeslopifyAPI = (() => {
     };
   }
 
+  /**
+   * Fetch channel details from YouTube API
+   * @param {string} channelId - YouTube channel ID
+   * @returns {Promise<Object|null>} Channel details object or null on failure
+   */
   async function getChannelDetails(channelId) {
     if (!channelId) return null;
 
@@ -178,6 +242,11 @@ const DeslopifyAPI = (() => {
     };
   }
 
+  /**
+   * Extract video ID from various YouTube URL formats
+   * @param {string} url - YouTube URL
+   * @returns {string|null} Video ID or null if not found
+   */
   function extractVideoId(url) {
     try {
       const u = new URL(url, window.location.origin);
