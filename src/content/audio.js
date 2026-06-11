@@ -29,6 +29,26 @@
     return document.querySelector('video');
   }
 
+  function selectOriginalAudioTrack() {
+    const player = getPlayerElement();
+    if (!player) return;
+
+    const tracks = player.getAvailableAudioTracks?.();
+    if (!tracks) return;
+
+    for (let i = 0; i < tracks.length; i++) {
+      const track = tracks[i];
+      if (track && track.language && track.isTranslatable !== undefined && !track.isTranslatable) {
+        const originalSetAudioTrack = player.setAudioTrack?.bind(player);
+        if (originalSetAudioTrack) {
+          originalSetAudioTrack(i);
+          originalAudioTrack = track;
+        }
+        return;
+      }
+    }
+  }
+
   function interceptAudioTracks() {
     const video = getVideoElement();
     if (!video) return;
@@ -68,6 +88,15 @@
         return originalSetAudioTrack(index);
       };
     }
+  }
+
+  function processVideoPage() {
+    const player = getPlayerElement();
+    if (player) {
+      selectOriginalAudioTrack();
+    }
+    interceptAudioTracks();
+    monitorPlayerState();
   }
 
   function processVideoPage() {

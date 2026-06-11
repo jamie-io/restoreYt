@@ -32,20 +32,6 @@
     return null;
   }
 
-  function getChaptersContainer() {
-    const selectors = [
-      'ytd-macro-markers-list-renderer',
-      '#chapters',
-      '#engagement-panel-macro-markers-description-chapters'
-    ];
-
-    for (const selector of selectors) {
-      const el = document.querySelector(selector);
-      if (el) return el;
-    }
-    return null;
-  }
-
   function findDescriptionTextContainer() {
     const selectors = [
       '#description-inline-expander #description-text',
@@ -84,30 +70,12 @@
     dom.replaceTextOnly(textContainer, details.shortDescription);
   }
 
-  async function replaceChapters(videoId) {
-    const container = getChaptersContainer();
-    if (!container || PROCESSED.has(container)) return;
-
-    const cacheKey = `desc:${videoId}`;
-    let details = cache.get(cacheKey);
-
-    if (!details) {
-      details = await api.getVideoDetails(videoId);
-      cache.set(cacheKey, details);
-    }
-
-    if (!details || !details.shortDescription) return;
-
-    PROCESSED.add(container);
-  }
-
   async function processVideoPage() {
     const videoId = getVideoId();
     if (!videoId || videoId === currentVideoId) return;
 
     currentVideoId = videoId;
     await replaceDescription(videoId);
-    await replaceChapters(videoId);
   }
 
   const debouncedProcess = dom.debounce(processVideoPage, 200);

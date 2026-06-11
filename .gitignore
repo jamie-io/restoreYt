@@ -77,6 +77,9 @@ logs/
 .yarn-integrity
 .pnp.*
 
+# Chrome extension metadata
+_metadata/
+
 # .env files
 .env
 .env.*

@@ -1,40 +1,45 @@
 #!/usr/bin/env python3
-"""Generate simple PNG icons for the extension."""
+"""Generate branded icons for the Deslopify extension.
 
-import struct
-import zlib
+Requires ImageMagick (the `convert` or `magick` command).
+Run: python3 generate_icons.py
+"""
 
-def create_png(width, height, color):
-    """Create a simple solid color PNG."""
-    def make_chunk(chunk_type, data):
-        chunk = chunk_type + data
-        return struct.pack('>I', len(data)) + chunk + struct.pack('>I', zlib.crc32(chunk) & 0xffffffff)
+import subprocess
+import sys
 
-    sig = b'\x89PNG\r\n\x1a\n'
 
-    ihdr_data = struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0)
-    ihdr = make_chunk(b'IHDR', ihdr_data)
+def generate_icon(size):
+    padding = size // 8
+    corners = size // 4
+    font_size = size // 2
+    out = f"icons/icon{size}.png"
 
-    raw_data = b''
-    r, g, b = color
-    for y in range(height):
-        raw_data += b'\x00'
-        for x in range(width):
-            raw_data += bytes([r, g, b])
+    cmd = [
+        "convert",
+        "-size", f"{size}x{size}", "xc:none",
+        "-fill", "#4CAF50",
+        "-draw", f"roundrectangle {padding},{padding} {size - padding},{size - padding} {corners},{corners}",
+        "-fill", "white",
+        "-font", "Adwaita-Mono-Bold",
+        "-pointsize", f"{font_size}",
+        "-gravity", "center",
+        "-annotate", "+0+0", "D",
+        out,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"Error creating {out}: {result.stderr.strip()}", file=sys.stderr)
+        return False
+    print(f"Created {out}")
+    return True
 
-    idat = make_chunk(b'IDAT', zlib.compress(raw_data))
-    iend = make_chunk(b'IEND', b'')
-
-    return sig + ihdr + idat + iend
 
 def main():
-    green = (76, 175, 80)
-
     for size in [16, 48, 128]:
-        png_data = create_png(size, size, green)
-        with open(f'icons/icon{size}.png', 'wb') as f:
-            f.write(png_data)
-        print(f'Created icons/icon{size}.png')
+        if not generate_icon(size):
+            sys.exit(1)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

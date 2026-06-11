@@ -256,9 +256,11 @@ Please review our [Code of Conduct](CODE_OF_CONDUCT.md) before contributing.
 
 ## Disclaimer
 
-This extension is not affiliated with, maintained by, or endorsed by YouTube or Google. It is an independent tool that modifies how YouTube content is displayed in your browser.
+**This extension is not affiliated with, maintained by, or endorsed by YouTube or Google.** It is an independent tool that modifies how YouTube content is displayed in your browser.
 
-The extension interacts with YouTube's internal API (InnerTube) using your existing session cookie. No authentication credentials are sent to any third party.
+The extension interacts with YouTube's **undocumented internal API (InnerTube)** using your existing session cookie (SAPISID). This is not a public API — it may break at any time without notice, and using it may violate YouTube's Terms of Service. Use at your own risk.
+
+No authentication credentials are sent to any third party. All API calls remain within `*.youtube.com`.
 
 ## Support
 

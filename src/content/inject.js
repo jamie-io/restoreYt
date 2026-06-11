@@ -47,7 +47,7 @@
   const features = [];
   if (settings.untranslateTitle) features.push(injectScript('src/content/title.js'));
   if (settings.untranslateThumbnail) features.push(injectScript('src/content/thumbnail.js'));
-  if (settings.untranslateDescription || settings.untranslateChapters) features.push(injectScript('src/content/description.js'));
+  if (settings.untranslateDescription) features.push(injectScript('src/content/description.js'));
   if (settings.untranslateAudio) features.push(injectScript('src/content/audio.js'));
   if (settings.untranslateChannelBranding) features.push(injectScript('src/content/channel.js'));
 

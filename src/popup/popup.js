@@ -9,7 +9,7 @@
       untranslateTitle: true,
       untranslateThumbnail: true,
       untranslateDescription: true,
-      untranslateChapters: true,
+      untranslateChapters: false,
       untranslateAudio: true,
       untranslateChannelBranding: true
     }, resolve);
