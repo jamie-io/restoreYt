@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Install dependencies if needed
+npm ci
+
+# Run linting
+npm run lint
+
+# Run tests
+npm test
+
+# Type checking (if available)
+if [ -f "package.json" ]; then
+  if grep -q "typecheck" package.json; then
+    npm run typecheck
+  fi
+fi
