@@ -61,6 +61,7 @@ export function createBackgroundController(
   const breaker = createFeatureCircuitBreaker({ failureThreshold: 3 });
   const startedFeatures = new Map<string, 'active' | 'disabled' | 'error'>();
   let started = false;
+  let startup = Promise.resolve();
 
   const record = (feature: string, level: 'info' | 'warning' | 'error', message: string): void => {
     diagnostics.record({ feature, level, message });
@@ -115,6 +116,7 @@ export function createBackgroundController(
   };
 
   const handleMessage = async (message: unknown): Promise<Record<string, unknown>> => {
+    await startup;
     switch (messageType(message)) {
       case 'restoreyt:get-settings': {
         const stored = await readStoredSettings();
@@ -138,7 +140,7 @@ export function createBackgroundController(
     start() {
       if (started) return;
       started = true;
-      void restoreFeatureStates().catch(() => undefined);
+      startup = restoreFeatureStates().catch(() => undefined);
       api?.runtime?.onMessage?.addListener(message => handleMessage(message));
       api?.storage?.onChanged?.addListener((changes, areaName) => {
         if (areaName === 'local') void fanOutSettings(changes);
@@ -147,6 +149,7 @@ export function createBackgroundController(
     },
     handleMessage,
     async setFeatureState(feature, status) {
+      await startup;
       startedFeatures.set(feature, status);
       if (status === 'error') {
         record(feature, 'error', 'Feature reported an error');

@@ -71,6 +71,42 @@ describe('background controller', () => {
     expect(response.features).toEqual({ titles: 'disabled', thumbnails: 'active', audio: 'error' });
   });
 
+  it('waits for startup restore before answering messages or persisting early state updates', async () => {
+    const api = makeApi();
+    await api.storage.local.set({
+      'restoreyt:feature-states': { titles: 'disabled', thumbnails: 'active' },
+    });
+    const getStored = api.storage.local.get;
+    let releaseStorage;
+    const storageBarrier = new Promise(resolve => { releaseStorage = resolve; });
+    api.storage.local.get = async defaults => {
+      await storageBarrier;
+      return getStored(defaults);
+    };
+    const controller = background.createBackgroundController(api);
+
+    controller.start();
+    let messageSettled = false;
+    let updateSettled = false;
+    const message = api.listeners.message({ type: 'restoreyt:get-diagnostics' }).then(response => {
+      messageSettled = true;
+      return response;
+    });
+    const update = controller.setFeatureState('titles', 'active').then(() => { updateSettled = true; });
+
+    await Promise.resolve();
+    expect(messageSettled).toBe(false);
+    expect(updateSettled).toBe(false);
+
+    releaseStorage();
+    const response = await message;
+    await update;
+
+    expect(response.features).toEqual({ titles: 'disabled', thumbnails: 'active' });
+    const stored = await getStored({ 'restoreyt:feature-states': {} });
+    expect(stored['restoreyt:feature-states']).toEqual({ titles: 'active', thumbnails: 'active' });
+  });
+
   it('updates badge state without throwing when optional APIs are absent', async () => {
     const api = makeApi();
     delete api.action;

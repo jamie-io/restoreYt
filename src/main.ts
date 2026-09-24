@@ -5,6 +5,12 @@ import { createInnerTubeClient } from './platform/api.js';
 import { discoverRuntimeConfig } from './platform/config.js';
 import { createFeatureRuntime, type FeatureRuntime } from './features/runtime.js';
 
+export interface MainWorldController {
+  settings: Settings;
+  runtime: FeatureRuntime | null;
+  updateSettings(value: unknown): Promise<void>;
+}
+
 export function readSettingsDataBlock(doc: Document): Settings {
   const block = doc.getElementById('restoreyt-settings');
   if (!block) return normalizeSettings({});
@@ -15,7 +21,7 @@ export function readSettingsDataBlock(doc: Document): Settings {
   }
 }
 
-export function startMainWorld(doc: Document, win: Window = window): { settings: Settings; runtime: FeatureRuntime | null } {
+export function startMainWorld(doc: Document, win: Window = window): MainWorldController {
   const settings = readSettingsDataBlock(doc);
   const config = discoverRuntimeConfig((win as Window & { ytcfg?: unknown }).ytcfg);
   let runtime: FeatureRuntime | null = null;
@@ -30,10 +36,23 @@ export function startMainWorld(doc: Document, win: Window = window): { settings:
     });
     runtime.start();
   }
+  const updateSettings = async (value: unknown): Promise<void> => {
+    Object.assign(settings, normalizeSettings(value));
+    await runtime?.process();
+  };
   doc.dispatchEvent(new CustomEvent('restoreyt:main-ready'));
-  return { settings, runtime };
+  return { settings, runtime, updateSettings };
 }
 
-if (typeof document !== 'undefined') {
-  document.addEventListener('restoreyt:settings-ready', () => { startMainWorld(document); }, { once: true });
+export function installMainWorld(doc: Document, win: Window = window): void {
+  let controller: MainWorldController | null = null;
+  doc.addEventListener('restoreyt:settings-ready', () => {
+    if (controller?.runtime) {
+      void controller.updateSettings(readSettingsDataBlock(doc)).catch(() => undefined);
+    } else {
+      controller = startMainWorld(doc, win);
+    }
+  });
 }
+
+if (typeof document !== 'undefined') installMainWorld(document);
