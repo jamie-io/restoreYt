@@ -1,111 +1,49 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { createInnerTubeClient } from '../../src/platform/api.ts';
 
-describe('DeslopifyAPI.getVideoDetails', () => {
-  let api;
+const config = {
+  apiKey: 'runtime-key',
+  clientName: 'WEB',
+  clientVersion: '2.20260901.01.00',
+  visitorData: undefined,
+};
 
-  beforeEach(() => {
-    global.window = {
-      location: { origin: 'https://www.youtube.com', hostname: 'www.youtube.com' },
-      DeslopifyCache: {
-        get: vi.fn(),
-        set: vi.fn()
-      }
-    };
-    global.fetch = vi.fn();
-    global.document = { cookie: '' };
-    // Mock crypto.subtle.digest
-    const mockDigest = vi.fn().mockResolvedValue(new ArrayBuffer(20));
-    Object.defineProperty(global, 'crypto', {
-      value: {
-        subtle: {
-          digest: mockDigest
-        }
-      },
-      writable: true,
-      configurable: true
-    });
-    global.TextEncoder = class {
-      encode(str) { return new Uint8Array([...str].map(c => c.charCodeAt(0))); }
-    };
+function response(body, ok = true) {
+  return { ok, json: async () => body };
+}
 
-    delete require.cache[require.resolve('../../src/lib/api.js')];
-    api = require('../../src/lib/api.js');
+describe('InnerTube client video details', () => {
+  it('returns null for empty IDs and failed requests', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('Network error'));
+    const client = createInnerTubeClient({ config, fetchImpl });
+
+    await expect(client.getVideoDetails('')).resolves.toBeNull();
+    await expect(client.getVideoDetails(null)).resolves.toBeNull();
+    await expect(client.getVideoDetails('dQw4w9WgXcQ')).resolves.toBeNull();
   });
 
-  it('returns null for empty video ID', async () => {
-    const result = await api.getVideoDetails('');
-    expect(result).toBeNull();
-  });
-
-  it('returns null for null video ID', async () => {
-    const result = await api.getVideoDetails(null);
-    expect(result).toBeNull();
-  });
-
-  it('returns null when fetch fails', async () => {
-    global.fetch.mockRejectedValue(new Error('Network error'));
-    const result = await api.getVideoDetails('dQw4w9WgXcQ');
-    expect(result).toBeNull();
-  });
-
-  it('returns null when API returns no videoDetails', async () => {
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({})
-    });
-    const result = await api.getVideoDetails('dQw4w9WgXcQ');
-    expect(result).toBeNull();
-  });
-
-  it('returns video details on success', async () => {
-    const mockResponse = {
+  it('returns normalized typed video details and strips thumbnail query strings', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(response({
       videoDetails: {
+        videoId: 'dQw4w9WgXcQ',
         title: 'Original Title',
         author: 'Channel Name',
         channelId: 'UC123',
-        thumbnail: {
-          thumbnails: [{ url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg' }]
-        },
+        thumbnail: { thumbnails: [{ url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg?sqp=xyz' }] },
         lengthSeconds: '300',
-        shortDescription: 'Original description text'
-      }
-    };
+        shortDescription: 'Original description text',
+      },
+    }));
+    const client = createInnerTubeClient({ config, fetchImpl });
 
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockResponse)
-    });
-
-    const result = await api.getVideoDetails('dQw4w9WgXcQ');
-    expect(result).toEqual({
+    await expect(client.getVideoDetails('dQw4w9WgXcQ')).resolves.toEqual({
+      videoId: 'dQw4w9WgXcQ',
       title: 'Original Title',
       author: 'Channel Name',
       channelId: 'UC123',
       thumbnailUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
       lengthSeconds: '300',
-      shortDescription: 'Original description text'
+      shortDescription: 'Original description text',
     });
-  });
-
-  it('strips query params from thumbnail URL', async () => {
-    const mockResponse = {
-      videoDetails: {
-        title: 'Title',
-        author: 'Author',
-        channelId: 'UC123',
-        thumbnail: {
-          thumbnails: [{ url: 'https://i.ytimg.com/vi/abc123/maxresdefault.jpg?sqp=xyz' }]
-        },
-        lengthSeconds: '60'
-      }
-    };
-
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockResponse)
-    });
-
-    const result = await api.getVideoDetails('abc123');
-    expect(result.thumbnailUrl).not.toContain('?');
   });
 });

@@ -1,46 +1,19 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { extractVideoId } from '../../src/platform/api.ts';
 
-describe('DeslopifyAPI.extractVideoId', () => {
-  let api;
-
-  beforeEach(() => {
-    global.window = { location: { origin: 'https://www.youtube.com' } };
-    global.URL = URL;
-
-    delete require.cache[require.resolve('../../src/lib/api.js')];
-    api = require('../../src/lib/api.js');
+describe('extractVideoId', () => {
+  it.each([
+    ['https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'dQw4w9WgXcQ'],
+    ['https://www.youtube.com/shorts/dQw4w9WgXcQ', 'dQw4w9WgXcQ'],
+    ['https://www.youtube.com/embed/dQw4w9WgXcQ', 'dQw4w9WgXcQ'],
+    ['https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg', 'dQw4w9WgXcQ'],
+    ['https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg', 'dQw4w9WgXcQ'],
+  ])('extracts %s', (url, expected) => {
+    expect(extractVideoId(url)).toBe(expected);
   });
 
-  it('extracts video ID from watch URL', () => {
-    const url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
-    expect(api.extractVideoId(url)).toBe('dQw4w9WgXcQ');
-  });
-
-  it('extracts video ID from shorts URL', () => {
-    const url = 'https://www.youtube.com/shorts/dQw4w9WgXcQ';
-    expect(api.extractVideoId(url)).toBe('dQw4w9WgXcQ');
-  });
-
-  it('extracts video ID from embed URL', () => {
-    const url = 'https://www.youtube.com/embed/dQw4w9WgXcQ';
-    expect(api.extractVideoId(url)).toBe('dQw4w9WgXcQ');
-  });
-
-  it('extracts video ID from ytimg URL', () => {
-    const url = 'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg';
-    expect(api.extractVideoId(url)).toBe('dQw4w9WgXcQ');
-  });
-
-  it('extracts video ID from img.youtube.com URL', () => {
-    const url = 'https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg';
-    expect(api.extractVideoId(url)).toBe('dQw4w9WgXcQ');
-  });
-
-  it('returns null for invalid URL', () => {
-    expect(api.extractVideoId('https://example.com')).toBeNull();
-  });
-
-  it('returns null for empty string', () => {
-    expect(api.extractVideoId('')).toBeNull();
+  it('rejects unrelated and empty URLs', () => {
+    expect(extractVideoId('https://example.com')).toBeNull();
+    expect(extractVideoId('')).toBeNull();
   });
 });

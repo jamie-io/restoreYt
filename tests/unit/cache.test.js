@@ -1,53 +1,24 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { createLruCache } from '../../src/core/cache.ts';
 
-describe('DeslopifyCache', () => {
-  let cache;
-  let storage;
-
-  beforeEach(() => {
-    storage = {};
-    global.sessionStorage = {
-      getItem: vi.fn(key => storage[key] || null),
-      setItem: vi.fn((key, value) => { storage[key] = value; }),
-      removeItem: vi.fn(key => { delete storage[key]; }),
-      key: vi.fn(index => Object.keys(storage)[index] || null),
-      get length() { return Object.keys(storage).length; }
-    };
-
-    delete require.cache[require.resolve('../../src/lib/cache.js')];
-    cache = require('../../src/lib/cache.js');
-  });
-
-  it('stores and retrieves values', () => {
-    cache.set('test', { foo: 'bar' });
-    expect(cache.get('test')).toEqual({ foo: 'bar' });
-  });
-
-  it('returns undefined for missing keys', () => {
-    expect(cache.get('nonexistent')).toBeUndefined();
-  });
-
-  it('deletes values', () => {
-    cache.set('test', 'value');
-    cache.delete('test');
-    expect(cache.get('test')).toBeUndefined();
-  });
-
-  it('clears all values', () => {
-    cache.set('test1', 'value1');
-    cache.set('test2', 'value2');
+describe('in-memory LRU cache', () => {
+  it('stores, retrieves, deletes, and clears values', () => {
+    const cache = createLruCache({ capacity: 2 });
+    cache.set('one', { value: 1 });
+    cache.set('two', { value: 2 });
+    expect(cache.get('one')).toEqual({ value: 1 });
+    expect(cache.delete('one')).toBe(true);
     cache.clear();
-    expect(cache.size()).toBe(0);
+    expect(cache.size).toBe(0);
   });
 
-  it('tracks size', () => {
-    cache.set('test1', 'value1');
-    cache.set('test2', 'value2');
-    expect(cache.size()).toBe(2);
-  });
-
-  it('tracks bytes', () => {
-    cache.set('test', 'value');
-    expect(cache.bytes()).toBeGreaterThan(0);
+  it('expires negative results faster than positive results', () => {
+    let now = 0;
+    const cache = createLruCache({ ttlMs: 100, negativeTtlMs: 10, now: () => now });
+    cache.set('hit', 'value');
+    cache.set('miss', null);
+    now = 11;
+    expect(cache.get('miss')).toBeUndefined();
+    expect(cache.get('hit')).toBe('value');
   });
 });

@@ -1,4 +1,4 @@
-export interface VideoDetails {
+export interface PlayerVideoDetails {
   videoId: string;
   title: string;
   author?: string;
@@ -6,7 +6,7 @@ export interface VideoDetails {
 }
 
 export interface VideoDetailsResponse {
-  videoDetails: VideoDetails;
+  videoDetails: PlayerVideoDetails;
   [key: string]: unknown;
 }
 
