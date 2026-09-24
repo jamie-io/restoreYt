@@ -320,9 +320,15 @@ export function createFeatureRuntime(options: FeatureRuntimeOptions): FeatureRun
     const images = Array.from(document.querySelectorAll('img[src*="ytimg.com"], img[data-src*="ytimg.com"]'))
       .filter((element): element is HTMLImageElement => element instanceof HTMLImageElement && isVisible(element));
     const startEpoch = epoch.value;
+    const navigationSignal = epoch.signal;
     await Promise.all(images.map(image => {
       const videoId = videoIdForThumbnail(image, api, window);
-      return videoId ? thumbnailQueue.run(() => restoreThumbnail(image, videoId, startEpoch), epoch.signal) : Promise.resolve();
+      return videoId
+        ? thumbnailQueue.run(() => restoreThumbnail(image, videoId, startEpoch), navigationSignal).catch(error => {
+          if (navigationSignal.aborted && error instanceof Error && error.name === 'AbortError') return;
+          throw error;
+        })
+        : Promise.resolve();
     }));
   };
 

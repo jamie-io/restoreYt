@@ -30,6 +30,44 @@ describe('InnerTube client', () => {
     expect(second).toEqual(first);
   });
 
+  it('selects thumbnail with greatest pixel area, not first API entry', async () => {
+    const fetchImpl = vi.fn(async () => response({
+      videoDetails: {
+        videoId: 'dQw4w9WgXcQ',
+        title: 'Video',
+        thumbnail: { thumbnails: [
+          { url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/default.jpg', width: 120, height: 90 },
+          { url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/wide.jpg', width: 1280, height: 320 },
+          { url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/large.jpg', width: 960, height: 540 },
+        ] },
+      },
+    }));
+    const client = createInnerTubeClient({ config, fetchImpl });
+
+    await expect(client.getVideoDetails('dQw4w9WgXcQ')).resolves.toMatchObject({
+      thumbnailUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/large.jpg',
+    });
+  });
+
+  it('falls back to first usable thumbnail when dimensions are unavailable', async () => {
+    const fetchImpl = vi.fn(async () => response({
+      videoDetails: {
+        videoId: 'dQw4w9WgXcQ',
+        title: 'Video',
+        thumbnail: { thumbnails: [
+          { url: 'not an absolute URL' },
+          { url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/default.jpg' },
+          { url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg' },
+        ] },
+      },
+    }));
+    const client = createInnerTubeClient({ config, fetchImpl });
+
+    await expect(client.getVideoDetails('dQw4w9WgXcQ')).resolves.toMatchObject({
+      thumbnailUrl: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/default.jpg',
+    });
+  });
+
   it('rejects HTTP failures, leaves them uncached, and keeps other video requests isolated', async () => {
     const fetchImpl = vi.fn()
       .mockResolvedValueOnce(response({}, false))

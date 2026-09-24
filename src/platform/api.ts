@@ -51,6 +51,29 @@ function normalizeThumbnailUrl(value: unknown): string | null {
   }
 }
 
+function selectThumbnailUrl(value: unknown): string | null {
+  if (!isRecord(value) || !Array.isArray(value.thumbnails)) return null;
+  const candidates = value.thumbnails.flatMap(entry => {
+    if (!isRecord(entry)) return [];
+    const url = normalizeThumbnailUrl(entry.url);
+    if (!url) return [];
+    const width = entry.width;
+    const height = entry.height;
+    const pixelArea = typeof width === 'number' && Number.isFinite(width) && width > 0
+      && typeof height === 'number' && Number.isFinite(height) && height > 0
+      ? width * height
+      : null;
+    return [{ url, pixelArea: pixelArea !== null && Number.isFinite(pixelArea) ? pixelArea : null }];
+  });
+  const measured = candidates.filter(candidate => candidate.pixelArea !== null);
+  if (measured.length === 0) return candidates[0]?.url ?? null;
+  let best: (typeof candidates)[number] | undefined;
+  for (const candidate of measured) {
+    if (!best || (candidate.pixelArea ?? 0) > (best.pixelArea ?? 0)) best = candidate;
+  }
+  return best?.url ?? null;
+}
+
 function asVideoDetails(response: VideoDetailsResponse): VideoDetails {
   const details = response.videoDetails;
   return {
@@ -58,9 +81,7 @@ function asVideoDetails(response: VideoDetailsResponse): VideoDetails {
     title: details.title,
     author: typeof details.author === 'string' ? details.author : null,
     channelId: typeof details.channelId === 'string' ? details.channelId : null,
-    thumbnailUrl: normalizeThumbnailUrl(
-      (details.thumbnail as { thumbnails?: Array<{ url?: unknown }> } | undefined)?.thumbnails?.[0]?.url,
-    ),
+    thumbnailUrl: selectThumbnailUrl(details.thumbnail),
     lengthSeconds: typeof details.lengthSeconds === 'string' ? details.lengthSeconds : null,
     shortDescription: typeof details.shortDescription === 'string' ? details.shortDescription : null,
   };

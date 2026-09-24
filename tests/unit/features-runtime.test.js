@@ -37,14 +37,14 @@ class FakeImage {
   getBoundingClientRect() { return { width: 160, height: 90 }; }
 }
 
-function createRuntimeHarness({ image, title, description, href = 'https://www.youtube.com/' } = {}) {
+function createRuntimeHarness({ image, images, title, description, href = 'https://www.youtube.com/' } = {}) {
   const handlers = new Map();
   const document = {
     body: {},
     contains: () => true,
     querySelector: vi.fn(() => null),
     querySelectorAll(selector) {
-      if (selector.startsWith('img[')) return image ? [image] : [];
+      if (selector.startsWith('img[')) return images ?? (image ? [image] : []);
       if (selector.startsWith('#description')) return description ? [description] : [];
       if (
         selector.startsWith('#channel-header')
@@ -311,6 +311,75 @@ describe('feature runtime decisions', () => {
 
     expect(image.srcWrites).toEqual([]);
     expect(image.listeners.size).toBe(0);
+  });
+
+  it('treats queued thumbnail navigation aborts as cancellation without opening breaker', async () => {
+    vi.stubGlobal('HTMLImageElement', FakeImage);
+    vi.stubGlobal('HTMLAnchorElement', class FakeAnchor {});
+    vi.stubGlobal('getComputedStyle', () => ({ display: 'block', visibility: 'visible', opacity: '1' }));
+    vi.stubGlobal('MutationObserver', class { observe() {} disconnect() {} });
+
+    const videoIds = [videoA, videoB, videoC, 'ddddddddddd', 'eeeeeeeeeee'];
+    const images = videoIds.map(videoId => {
+      const image = new FakeImage();
+      image.src = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+      return image;
+    });
+    const { document, window } = createRuntimeHarness({ images, href: `https://www.youtube.com/watch?v=${videoA}` });
+    const api = {
+      extractVideoId(url) { return new URL(url).pathname.split('/')[2] || null; },
+      getVideoDetails: vi.fn(async videoId => videoDetails(videoId, {
+        thumbnailUrl: `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
+      })),
+      getChannelDetails: vi.fn(),
+    };
+    const diagnostics = createDiagnosticsBuffer();
+    const runtime = createFeatureRuntime({
+      document,
+      window,
+      api,
+      settings: runtimeSettings({ untranslateThumbnail: true }),
+      diagnostics,
+    });
+
+    runtime.start();
+    window.navigate(`https://www.youtube.com/watch?v=${videoB}`);
+    window.navigate(`https://www.youtube.com/watch?v=${videoC}`);
+    window.navigate(`https://www.youtube.com/watch?v=${videoA}`);
+
+    await vi.waitFor(() => expect(images.some(image => image.src.endsWith('/maxresdefault.jpg'))).toBe(true));
+    await runtime.process();
+
+    expect(diagnostics.snapshot()).toEqual([]);
+    runtime.stop();
+  });
+
+  it('still records genuine thumbnail API failures', async () => {
+    vi.stubGlobal('HTMLImageElement', FakeImage);
+    vi.stubGlobal('HTMLAnchorElement', class FakeAnchor {});
+    vi.stubGlobal('getComputedStyle', () => ({ display: 'block', visibility: 'visible', opacity: '1' }));
+    const image = new FakeImage();
+    image.src = `https://i.ytimg.com/vi/${videoA}/hqdefault.jpg`;
+    const { document, window } = createRuntimeHarness({ image, href: `https://www.youtube.com/watch?v=${videoA}` });
+    const api = {
+      extractVideoId(url) { return new URL(url).pathname.split('/')[2] || null; },
+      getVideoDetails: vi.fn().mockRejectedValue(new Error('network failure')),
+      getChannelDetails: vi.fn(),
+    };
+    const diagnostics = createDiagnosticsBuffer();
+    const runtime = createFeatureRuntime({
+      document,
+      window,
+      api,
+      settings: runtimeSettings({ untranslateThumbnail: true }),
+      diagnostics,
+    });
+
+    await runtime.process();
+
+    expect(diagnostics.snapshot()).toMatchObject([
+      { feature: 'thumbnail', level: 'error', message: 'network failure' },
+    ]);
   });
 
   it('ignores stale thumbnail work after navigation and permits same image to process its next video', async () => {
