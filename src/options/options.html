@@ -254,24 +254,24 @@
     </div>
 
 
-    <div class="toggle-row">
+    <div class="toggle-row is-locked">
       <div>
         <div class="toggle-label">Disable AI Audio</div>
-        <div class="toggle-desc">Prevent AI audio dubbing</div>
+        <div class="toggle-desc" id="audioEvidenceGate">Evidence-gated: unavailable until runtime opt-in</div>
       </div>
       <label class="toggle">
-        <input type="checkbox" id="untranslateAudio" checked>
+        <input type="checkbox" id="untranslateAudio" checked disabled aria-describedby="audioEvidenceGate">
         <span class="slider"></span>
       </label>
     </div>
 
-    <div class="toggle-row">
+    <div class="toggle-row is-locked">
       <div>
         <div class="toggle-label">Untranslate Channel Branding</div>
-        <div class="toggle-desc">Restore original channel headers</div>
+        <div class="toggle-desc" id="channelBrandingEvidenceGate">Evidence-gated: unavailable until runtime opt-in</div>
       </div>
       <label class="toggle">
-        <input type="checkbox" id="untranslateChannelBranding" checked>
+        <input type="checkbox" id="untranslateChannelBranding" checked disabled aria-describedby="channelBrandingEvidenceGate">
         <span class="slider"></span>
       </label>
     </div>
