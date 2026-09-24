@@ -53,6 +53,24 @@
       color: #333;
     }
 
+    .toggle-copy {
+      display: grid;
+      gap: 4px;
+    }
+
+    .toggle-note {
+      color: #666;
+      font-size: 11px;
+    }
+
+    .toggle-row.is-locked {
+      opacity: 0.65;
+    }
+
+    .toggle-row.is-locked .slider {
+      cursor: not-allowed;
+    }
+
     .toggle {
       position: relative;
       width: 44px;
@@ -154,18 +172,24 @@
     </div>
 
 
-    <div class="toggle-row">
-      <span class="toggle-label">Disable AI Audio</span>
+    <div class="toggle-row is-locked">
+      <div class="toggle-copy">
+        <span class="toggle-label">Disable AI Audio</span>
+        <span class="toggle-note" id="audioEvidenceGate">Evidence-gated: unavailable until runtime opt-in</span>
+      </div>
       <label class="toggle">
-        <input type="checkbox" id="untranslateAudio" checked>
+        <input type="checkbox" id="untranslateAudio" checked disabled aria-describedby="audioEvidenceGate">
         <span class="slider"></span>
       </label>
     </div>
 
-    <div class="toggle-row">
-      <span class="toggle-label">Untranslate Channel Branding</span>
+    <div class="toggle-row is-locked">
+      <div class="toggle-copy">
+        <span class="toggle-label">Untranslate Channel Branding</span>
+        <span class="toggle-note" id="channelBrandingEvidenceGate">Evidence-gated: unavailable until runtime opt-in</span>
+      </div>
       <label class="toggle">
-        <input type="checkbox" id="untranslateChannelBranding" checked>
+        <input type="checkbox" id="untranslateChannelBranding" checked disabled aria-describedby="channelBrandingEvidenceGate">
         <span class="slider"></span>
       </label>
     </div>

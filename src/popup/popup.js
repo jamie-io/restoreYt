@@ -34,6 +34,7 @@ async function initialize() {
   const settings = await readSettings();
   document.querySelectorAll('#toggles input[type="checkbox"]').forEach(toggle => {
     toggle.checked = settings[toggle.id];
+    if (toggle.disabled) return;
     toggle.addEventListener('change', () => {
       settings[toggle.id] = toggle.checked;
       void saveSetting(toggle.id, toggle.checked);

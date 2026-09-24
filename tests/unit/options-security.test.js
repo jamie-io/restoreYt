@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 const optionsSource = await readFile(new URL('../../src/options/options.js', import.meta.url), 'utf8');
 const popupSource = await readFile(new URL('../../src/popup/popup.js', import.meta.url), 'utf8');
+const popupHtml = await readFile(new URL('../../src/popup/popup.html', import.meta.url), 'utf8');
 
 class FakeElement {
   constructor() {
@@ -10,6 +11,8 @@ class FakeElement {
     this.dataset = {};
     this.value = '';
     this.textContent = '';
+    this.checked = false;
+    this.disabled = false;
   }
 
   addEventListener(type, listener) {
@@ -58,6 +61,45 @@ async function loadOptions() {
   return { elements, saved };
 }
 
+async function loadPopup() {
+  const controlIds = [
+    'enabled',
+    'untranslateTitle',
+    'untranslateThumbnail',
+    'untranslateDescription',
+    'untranslateAudio',
+    'untranslateChannelBranding',
+  ];
+  const elements = new Map(['status', 'openOptions', ...controlIds]
+    .map(id => {
+      const element = new FakeElement();
+      element.id = id;
+      return [id, element];
+    }));
+  const saved = [];
+  const controls = controlIds.map(id => elements.get(id));
+  elements.get('untranslateAudio').disabled = true;
+  elements.get('untranslateChannelBranding').disabled = true;
+
+  vi.stubGlobal('browser', {
+    storage: {
+      local: {
+        get: async defaults => defaults,
+        set: async values => saved.push(values),
+      },
+    },
+    runtime: { openOptionsPage() {} },
+  });
+  vi.stubGlobal('document', {
+    getElementById: id => elements.get(id),
+    querySelectorAll: () => controls,
+  });
+  vi.resetModules();
+  await import('../../src/popup/popup.js');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  return { elements, saved };
+}
+
 afterEach(() => vi.unstubAllGlobals());
 
 describe('settings surfaces', () => {
@@ -66,6 +108,25 @@ describe('settings surfaces', () => {
     expect(popupSource).toContain('storage?.local');
     expect(optionsSource).not.toContain('storage.sync');
     expect(popupSource).not.toContain('storage.sync');
+  });
+
+  it('visibly locks audio and channel controls behind runtime opt-in', async () => {
+    for (const id of ['untranslateAudio', 'untranslateChannelBranding']) {
+      const input = popupHtml.match(new RegExp(`<input[^>]*id="${id}"[^>]*>`))?.[0];
+      expect(input).toContain('disabled');
+      expect(input).toContain('aria-describedby=');
+    }
+    expect(popupHtml).toContain('Evidence-gated: unavailable until runtime opt-in');
+    expect(popupHtml).toContain('<span class="toggle-label">Disable AI Audio</span>');
+
+    const { elements, saved } = await loadPopup();
+    elements.get('untranslateAudio').dispatch('change');
+    elements.get('untranslateChannelBranding').dispatch('change');
+    expect(saved).toEqual([]);
+
+    elements.get('untranslateTitle').dispatch('change');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(saved).toEqual([{ untranslateTitle: true }]);
   });
 
   it('render channel IDs through textContent instead of HTML interpolation', () => {

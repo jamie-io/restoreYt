@@ -4,7 +4,15 @@ import { createDefaultSettings, normalizeSettings, type Settings } from './core/
 
 export interface BrowserApi {
   runtime?: {
-    onMessage?: { addListener: (listener: (message: unknown, sender: unknown) => unknown) => void };
+    onMessage?: {
+      addListener: (
+        listener: (
+          message: unknown,
+          sender: unknown,
+          sendResponse: (response: Record<string, unknown>) => void,
+        ) => boolean | void,
+      ) => void;
+    };
     getManifest?: () => { version?: string };
   };
   storage?: {
@@ -141,7 +149,13 @@ export function createBackgroundController(
       if (started) return;
       started = true;
       startup = restoreFeatureStates().catch(() => undefined);
-      api?.runtime?.onMessage?.addListener(message => handleMessage(message));
+      api?.runtime?.onMessage?.addListener((message, _sender, sendResponse) => {
+        void handleMessage(message).then(
+          sendResponse,
+          () => sendResponse({ ok: false, error: 'Message handling failed' }),
+        );
+        return true;
+      });
       api?.storage?.onChanged?.addListener((changes, areaName) => {
         if (areaName === 'local') void fanOutSettings(changes);
       });

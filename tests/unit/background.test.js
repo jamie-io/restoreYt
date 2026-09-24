@@ -32,16 +32,30 @@ function makeApi() {
   };
 }
 
+function requestMessage(api, message, sender) {
+  let keepChannelOpen;
+  const response = new Promise(resolve => {
+    keepChannelOpen = api.listeners.message(message, sender, resolve);
+  });
+  return { keepChannelOpen, response };
+}
+
 describe('background controller', () => {
   it('registers listeners, answers diagnostics, and fans out storage changes', async () => {
     const api = makeApi();
     const controller = background.createBackgroundController(api, { now: () => 123 });
 
     controller.start();
-    const response = await api.listeners.message({ type: 'restoreyt:get-diagnostics' }, { tab: { id: 7 } });
+    const request = requestMessage(api, { type: 'restoreyt:get-diagnostics' }, { tab: { id: 7 } });
+    expect(request.keepChannelOpen).toBe(true);
+    const response = await request.response;
 
     expect(response.version).toBe('0.1.0');
     expect(response.generatedAt).toBe(123);
+    await expect(controller.handleMessage({ type: 'restoreyt:self-test' })).resolves.toEqual({
+      ok: true,
+      featureCount: 0,
+    });
 
     api.listeners.changed({ enabled: { newValue: false } }, 'local');
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -88,7 +102,9 @@ describe('background controller', () => {
     controller.start();
     let messageSettled = false;
     let updateSettled = false;
-    const message = api.listeners.message({ type: 'restoreyt:get-diagnostics' }).then(response => {
+    const request = requestMessage(api, { type: 'restoreyt:get-diagnostics' });
+    expect(request.keepChannelOpen).toBe(true);
+    const message = request.response.then(response => {
       messageSettled = true;
       return response;
     });
