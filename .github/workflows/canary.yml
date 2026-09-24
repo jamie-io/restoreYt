@@ -1,0 +1,20 @@
+name: Scheduled canary placeholder
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  canary-placeholder:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Mark live canary as pending
+        run: echo "Live canary pending; this placeholder makes no external requests."

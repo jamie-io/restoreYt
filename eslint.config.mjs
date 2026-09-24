@@ -1,8 +1,8 @@
 export default [
   {
     rules: {
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
-      'no-undef': 'off',
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      'no-undef': 'error',
       'no-console': 'off',
     },
     languageOptions: {
@@ -25,6 +25,9 @@ export default [
         Map: 'readonly',
         module: 'readonly',
         require: 'readonly',
+        getComputedStyle: 'readonly',
+        global: 'readonly',
+        process: 'readonly',
       },
     },
   },
