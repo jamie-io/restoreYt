@@ -1,6 +1,6 @@
-import { mkdir, writeFile, rename, rm } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { mkdir, readFile, writeFile, rename, rm } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chromium } from '@playwright/test';
 import { redactEvidence, writeRedactedJson } from './redact.mjs';
 import { parseVideoMatrix, REQUIRED_SAMPLES } from './matrix.mjs';
@@ -10,8 +10,56 @@ const reportPath = join(repositoryRoot, 'docs/spike-report.md');
 const fixturePath = join(repositoryRoot, 'tests/fixtures/phase-0-evidence.json');
 const cdpEndpoint = process.env.SPIKE_CDP_ENDPOINT || 'http://127.0.0.1:9334';
 const categories = Object.keys(REQUIRED_SAMPLES);
+const DEFAULT_SPIKE_PREF = 'f6=400&hl=de';
 
-function blockedEvidence(reason, matrix, configError = null, sessionVariant = null) {
+export function parseSpikePref(raw) {
+  const value = raw === undefined ? DEFAULT_SPIKE_PREF : raw;
+  const fail = (message = 'SPIKE_PREF must be a cookie-safe ampersand-separated list of key=value pairs.') => ({
+    value: null,
+    language: null,
+    error: message,
+  });
+  if (typeof value !== 'string' || value.length === 0 || value.length > 4096 || /[^\x21-\x7E]/.test(value) || value.includes(';')) {
+    return fail();
+  }
+
+  const pairs = value.split('&');
+  const keys = new Set();
+  for (const pair of pairs) {
+    const separator = pair.indexOf('=');
+    const key = pair.slice(0, separator);
+    const partValue = pair.slice(separator + 1);
+    if (separator < 1 || !/^[A-Za-z0-9_-]+$/.test(key) || !/^[A-Za-z0-9._~:+/%-]+$/.test(partValue)) {
+      return fail();
+    }
+    if (keys.has(key)) return fail('SPIKE_PREF contains duplicate keys.');
+    keys.add(key);
+    try {
+      decodeURIComponent(partValue.replaceAll('+', '%20'));
+    } catch {
+      return fail();
+    }
+  }
+
+  const languageValue = pairs.map(pair => pair.split('=', 2)).find(([key]) => key === 'hl')?.[1] ?? null;
+  const language = languageValue && /^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(languageValue) ? languageValue : null;
+  return { value, language, error: null };
+}
+
+export function inferSessionVariant({ accountMenuVisible, signInControlVisible } = {}) {
+  if (accountMenuVisible === true && signInControlVisible === false) return 'logged-in';
+  if (accountMenuVisible === false && signInControlVisible === true) return 'logged-out';
+  return 'unknown';
+}
+
+export function mergeSessionVariants(previous = {}, current = {}) {
+  return {
+    loggedOut: previous.loggedOut === 'OBSERVED' || current.loggedOut === 'OBSERVED' ? 'OBSERVED' : 'NOT OBSERVED',
+    loggedIn: previous.loggedIn === 'OBSERVED' || current.loggedIn === 'OBSERVED' ? 'OBSERVED' : 'NOT OBSERVED',
+  };
+}
+
+function blockedEvidence(reason, matrix, configError = null, sessionVariant = null, prefApplied = false) {
   const entries = [
     ['title', 'Title', 'Embedded bootstrap data untranslated?', 'Rendered title differs from embedded title while German UI is validated.'],
     ['thumbnail', 'Thumbnail', 'Translated thumbnail signature?', 'A translated thumbnail differs from a known original asset by URL or DOM evidence.'],
@@ -29,10 +77,12 @@ function blockedEvidence(reason, matrix, configError = null, sessionVariant = nu
     configuration: {
       configuredSamples: Object.fromEntries(categories.map((category) => [category, matrix[category].length])),
       error: configError,
-      prefCookie: 'NOT APPLIED',
+      prefCookie: prefApplied ? 'APPLIED, VALUE WITHHELD' : 'NOT APPLIED',
+      sessionVariantRequested: sessionVariant === 'logged-out' || sessionVariant === 'logged-in' ? sessionVariant : null,
+      sessionVariantValidation: 'NOT CHECKED',
       sessionVariants: {
-        loggedOut: sessionVariant === 'logged-out' ? 'CONFIGURED, NOT OBSERVED' : 'NOT OBSERVED',
-        loggedIn: sessionVariant === 'logged-in' ? 'CONFIGURED, NOT OBSERVED' : 'NOT OBSERVED',
+        loggedOut: 'NOT OBSERVED',
+        loggedIn: 'NOT OBSERVED',
       },
     },
     observations: [],
@@ -46,7 +96,7 @@ function blockedEvidence(reason, matrix, configError = null, sessionVariant = nu
         channelBranding: `No large-channel targets configured (${configured.length}); no translation baseline.`,
         bootstrapInjection: 'No live YouTube document; CSP and script probes were not run.',
         cookieVisibility: 'No live document.cookie access; no cookie value was read.',
-        domThumbnail: 'No live thumbnail element or known original asset; DOM behavior was not tested.',
+        domThumbnail: 'No live thumbnail element or known original asset; DOM behavior and error fallback were not tested.',
       }[key];
       return {
         key,
@@ -60,7 +110,7 @@ function blockedEvidence(reason, matrix, configError = null, sessionVariant = nu
   };
 }
 
-async function inspectPage(page, category, sampleIndex, videoId, nextStatuses, counters) {
+export async function inspectPage(page, category, sampleIndex, videoId, nextStatuses, counters) {
   const url = videoId
     ? `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&hl=de&gl=DE`
     : 'https://www.youtube.com/?hl=de&gl=DE';
@@ -97,7 +147,7 @@ async function inspectPage(page, category, sampleIndex, videoId, nextStatuses, c
         'ytd-macro-markers-list-item-renderer, ytd-chapter-renderer',
       )];
       const chapterCount = chapterElements.length;
-      const chapterTitles = chapterElements.map(element => element.textContent?.trim() || '').filter(Boolean).slice(0, 20);
+      const chapterTitleCount = chapterElements.filter(element => Boolean(element.textContent?.trim())).length;
       const channelName = document.querySelector('#channel-name a, ytd-channel-name a')?.textContent?.trim() || '';
       const thumbnailImages = [...document.querySelectorAll('ytd-thumbnail img, #thumbnail img')].slice(0, 12);
       const thumbnailVariants = [...new Set(thumbnailImages.map((image) => {
@@ -161,14 +211,12 @@ async function inspectPage(page, category, sampleIndex, videoId, nextStatuses, c
 
       const thumbnail = thumbnailImages[0];
       let thumbnailMutationObserved = false;
-      let thumbnailFallbackObserved = false;
       let thumbnailRestored = false;
       if (thumbnail) {
         const originalSrc = thumbnail.getAttribute('src');
         const probeSrc = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
         thumbnail.setAttribute('src', probeSrc);
         thumbnailMutationObserved = thumbnail.getAttribute('src') === probeSrc;
-        thumbnailFallbackObserved = true;
         if (originalSrc === null) thumbnail.removeAttribute('src');
         else thumbnail.setAttribute('src', originalSrc);
         thumbnailRestored = thumbnail.getAttribute('src') === originalSrc;
@@ -176,11 +224,21 @@ async function inspectPage(page, category, sampleIndex, videoId, nextStatuses, c
 
       const cookieString = document.cookie;
       const sapisidCookieVisible = cookieString.split(';').some((part) => /^\s*SAPISID(?:HASH)?=/i.test(part));
-      const language = safeLanguage(document.documentElement.lang)
-        || safeLanguage(typeof window.ytcfg?.get === 'function' ? window.ytcfg.get('HL') : null);
+      const uiLanguage = safeLanguage(document.documentElement.lang);
+      const applicationLanguage = safeLanguage(typeof window.ytcfg?.get === 'function' ? window.ytcfg.get('HL') : null);
+      const isVisible = (element) => Boolean(element && element.getClientRects().length > 0);
+      const accountMenuVisible = isVisible(document.querySelector(
+        'ytd-topbar-menu-button-renderer #avatar-btn, ytd-topbar-menu-button-renderer #avatar-btn img',
+      ));
+      const signInControlVisible = isVisible(document.querySelector(
+        '#buttons a[href*="signin"], #buttons a[href*="ServiceLogin"], ytd-button-renderer#sign-in-button',
+      ));
 
       return {
-        uiLanguage: language,
+        uiLanguage,
+        applicationLanguage,
+        accountMenuVisible,
+        signInControlVisible,
         playerResponsePresent: Boolean(playerResponse),
         playerResponseKeys: playerResponse ? Object.keys(playerResponse).sort() : [],
         videoDetailsKeys: Object.keys(details).sort(),
@@ -198,7 +256,7 @@ async function inspectPage(page, category, sampleIndex, videoId, nextStatuses, c
         autoDubSignalCount: autoDubSignals.length,
         autoDubbedTrackCount: autoDubSignals.filter((track) => track.isAutoDubbed).length,
         chapterElementCount: chapterCount,
-        chapterTitles,
+        chapterTitleCount,
         channelNamePresent: Boolean(channelName),
         channelNameDiffersFromEmbeddedAuthor: Boolean(channelName && details.author && channelName !== details.author),
         avatarPresent: Boolean(document.querySelector('#avatar img, ytd-channel-avatar img')),
@@ -206,21 +264,31 @@ async function inspectPage(page, category, sampleIndex, videoId, nextStatuses, c
         thumbnailImageCount: thumbnailImages.length,
         thumbnailVariants,
         thumbnailMutationObserved,
-        thumbnailFallbackObserved,
         thumbnailRestored,
+        thumbnailFallbackStatus: 'UNTESTED',
         sapisidCookieVisible,
-        applicationLanguage: safeLanguage(typeof window.ytcfg?.get === 'function' ? window.ytcfg.get('HL') : null),
       };
     });
 
-    const localeValidated = pageData.uiLanguage === 'de' || pageData.applicationLanguage === 'de';
+    const safePageData = { ...pageData };
+    if (Array.isArray(safePageData.chapterTitles)) {
+      safePageData.chapterTitleCount = safePageData.chapterTitles
+        .filter((title) => typeof title === 'string' && title.trim()).length;
+      delete safePageData.chapterTitles;
+    }
+    delete safePageData.thumbnailFallbackObserved;
+    delete safePageData.thumbnailErrorEventObserved;
+    safePageData.thumbnailFallbackStatus = 'UNTESTED';
+    const uiLanguageIsGerman = safePageData.uiLanguage === 'de' || /^de-[A-Z]{2}$/.test(safePageData.uiLanguage || '');
+    const localeValidated = uiLanguageIsGerman;
     return {
       category,
       sampleIndex,
       status: 'OBSERVED',
       httpStatus: response?.status() ?? null,
       localeValidated,
-      ...pageData,
+      ...safePageData,
+      sessionVariant: inferSessionVariant(safePageData),
       nextResponseStatuses: [...nextStatuses],
       consoleErrorCount: counters.consoleErrors,
       cspErrorCount: counters.cspErrors,
@@ -236,7 +304,7 @@ async function inspectPage(page, category, sampleIndex, videoId, nextStatuses, c
   }
 }
 
-function summarize(matrix, observations) {
+export function summarize(matrix, observations) {
   const row = (key, label, question, criterion, status, evidence) => ({
     key, label, question, criterion, status, evidence,
   });
@@ -244,14 +312,18 @@ function summarize(matrix, observations) {
   const rows = [];
 
   const titleSamples = grouped('title');
-  const validTitleSamples = titleSamples.filter((item) => item.localeValidated && item.renderedTitlePresent && item.embeddedTitlePresent);
+  const validTitleSamples = titleSamples.filter((item) => {
+    const germanUi = item.uiLanguage === 'de' || /^de-[A-Z]{2}$/.test(item.uiLanguage || '');
+    return germanUi && item.renderedTitlePresent && item.embeddedTitlePresent;
+  });
+  const titleStatus = validTitleSamples.length < REQUIRED_SAMPLES.title
+    ? 'BLOCKED'
+    : validTitleSamples.some((item) => item.renderedTitleDiffersFromEmbedded) ? 'PASS' : 'FAIL';
   rows.push(row(
     'title', 'Title', 'Embedded bootstrap data untranslated?',
     'Rendered title differs from embedded title while German UI is validated.',
-    validTitleSamples.length === 0 ? 'BLOCKED' : validTitleSamples.some((item) => item.renderedTitleDiffersFromEmbedded) ? 'PASS' : 'FAIL',
-    validTitleSamples.length === 0
-      ? 'No configured title sample produced both a rendered and embedded title under validated German UI.'
-      : `${validTitleSamples.length} validated comparisons; ${validTitleSamples.filter((item) => item.renderedTitleDiffersFromEmbedded).length} differed.`,
+    titleStatus,
+    `${validTitleSamples.length}/${REQUIRED_SAMPLES.title} validated comparisons; ${validTitleSamples.filter((item) => item.renderedTitleDiffersFromEmbedded).length} differed.${validTitleSamples.length < REQUIRED_SAMPLES.title ? ' All five validated comparisons are required for a title result.' : ''}`,
   ));
 
   const thumbnailSamples = grouped('thumbnail');
@@ -282,7 +354,7 @@ function summarize(matrix, observations) {
     chapterSamples.length === 0 ? 'BLOCKED' : 'UNKNOWN',
     chapterSamples.length === 0
       ? 'No configured chapter samples were observed.'
-      : `${chapterSamples.length} samples; ${chapterSamples.reduce((sum, item) => sum + item.chapterElementCount, 0)} chapter DOM elements; captured titles ${chapterSamples.flatMap(item => item.chapterTitles || []).length}. No original-language title baseline was configured, so criterion remains blocked.`,
+      : `${chapterSamples.length} samples; ${chapterSamples.reduce((sum, item) => sum + item.chapterElementCount, 0)} chapter DOM elements; ${chapterSamples.reduce((sum, item) => sum + item.chapterTitleCount, 0)} non-empty chapter title fields counted. Title text was not retained. No original-language title baseline was configured, so criterion remains blocked.`,
   ));
 
   const channelSamples = grouped('channelBranding');
@@ -319,14 +391,18 @@ function summarize(matrix, observations) {
     domSamples.length === 0 ? 'BLOCKED' : domSamples.some((item) => item.thumbnailMutationObserved && item.thumbnailRestored) ? 'PARTIAL' : 'FAIL',
     domSamples.length === 0
       ? 'No live thumbnail element was available.'
-      : `DOM mutation and restoration succeeded in ${domSamples.filter((item) => item.thumbnailMutationObserved && item.thumbnailRestored).length}/${domSamples.length} observations; fallback handler ran in ${domSamples.filter(item => item.thumbnailFallbackObserved).length}. Network-permission sufficiency remains unproven.`,
+      : `DOM mutation and restoration succeeded in ${domSamples.filter((item) => item.thumbnailMutationObserved && item.thumbnailRestored).length}/${domSamples.length} observations; thumbnail error fallback was not tested. Network-permission sufficiency remains unproven.`,
   ));
 
   return rows;
 }
 
-async function collectLive(matrix, configError) {
-  const sessionVariant = process.env.SPIKE_SESSION_VARIANT;
+export async function collectLive(matrix, configError, options = {}) {
+  const {
+    sessionVariant = process.env.SPIKE_SESSION_VARIANT,
+    prefRaw = process.env.SPIKE_PREF,
+    connectOverCDP = (...args) => chromium.connectOverCDP(...args),
+  } = options;
   if (configError) {
     return {
       evidence: blockedEvidence('Live probing stopped before browser connection because matrix configuration is invalid.', matrix, configError, sessionVariant),
@@ -334,12 +410,19 @@ async function collectLive(matrix, configError) {
   }
   if (sessionVariant !== 'logged-out' && sessionVariant !== 'logged-in') {
     return {
-      evidence: blockedEvidence('Set SPIKE_SESSION_VARIANT to logged-out or logged-in before live probing; session state is never inferred from cookies.', matrix, 'SPIKE_SESSION_VARIANT is required for live probing.', sessionVariant),
+      evidence: blockedEvidence('Set SPIKE_SESSION_VARIANT to logged-out or logged-in before live probing.', matrix, 'SPIKE_SESSION_VARIANT must be logged-out or logged-in.', sessionVariant),
     };
   }
+  const pref = parseSpikePref(prefRaw);
+  if (pref.error) {
+    return {
+      evidence: blockedEvidence('Live probing stopped before browser connection because PREF configuration is invalid.', matrix, pref.error, sessionVariant),
+    };
+  }
+
   let browser;
   try {
-    browser = await chromium.connectOverCDP(cdpEndpoint, { timeout: 5000 });
+    browser = await connectOverCDP(cdpEndpoint, { timeout: 5000 });
   } catch (error) {
     const code = typeof error?.code === 'string' ? error.code : 'connection unavailable';
     return {
@@ -359,7 +442,7 @@ async function collectLive(matrix, configError) {
 
   await context.addCookies([{
     name: 'PREF',
-    value: process.env.SPIKE_PREF || 'f6=400&hl=de',
+    value: pref.value,
     domain: '.youtube.com',
     path: '/',
   }]);
@@ -397,16 +480,32 @@ async function collectLive(matrix, configError) {
   }
 
   const rows = summarize(matrix, observations);
+  const observedVariants = new Set(observations
+    .filter((item) => item.status === 'OBSERVED')
+    .map((item) => item.sessionVariant)
+    .filter((variant) => variant === 'logged-out' || variant === 'logged-in'));
+  const sessionVariantValidation = observedVariants.size === 0
+    ? 'UNVERIFIED'
+    : observedVariants.size === 1 && observedVariants.has(sessionVariant) ? 'MATCHED' : 'MISMATCHED';
+  const reason = sessionVariantValidation === 'MISMATCHED'
+    ? 'Visible YouTube sign-in/account controls did not match SPIKE_SESSION_VARIANT.'
+    : sessionVariantValidation === 'UNVERIFIED'
+      ? 'Visible YouTube sign-in/account controls did not establish a session state.'
+      : null;
+  const hasObservedPage = observations.some((item) => item.status === 'OBSERVED');
   const evidence = {
     generatedAt: new Date().toISOString(),
-    live: { status: observations.some((item) => item.status === 'OBSERVED') ? 'OBSERVED' : 'BLOCKED', reason: null },
+    live: { status: !reason && hasObservedPage ? 'OBSERVED' : 'BLOCKED', reason },
     configuration: {
       configuredSamples: Object.fromEntries(categories.map((category) => [category, matrix[category].length])),
       error: configError,
       prefCookie: 'APPLIED, VALUE WITHHELD',
+      prefCookieLanguage: pref.language,
+      sessionVariantRequested: sessionVariant,
+      sessionVariantValidation,
       sessionVariants: {
-        loggedOut: sessionVariant === 'logged-out' ? 'OBSERVED' : 'NOT OBSERVED',
-        loggedIn: sessionVariant === 'logged-in' ? 'OBSERVED' : 'NOT OBSERVED',
+        loggedOut: observedVariants.has('logged-out') ? 'OBSERVED' : 'NOT OBSERVED',
+        loggedIn: observedVariants.has('logged-in') ? 'OBSERVED' : 'NOT OBSERVED',
       },
     },
     observations,
@@ -425,6 +524,8 @@ function renderReport(evidence) {
     '',
     `Configured samples: ${categories.map((category) => `${category} ${evidence.configuration.configuredSamples[category]}`).join('; ')}.`,
     `Session variants: logged-out ${evidence.configuration.sessionVariants.loggedOut}; logged-in ${evidence.configuration.sessionVariants.loggedIn}.`,
+    `PREF cookie: ${evidence.configuration.prefCookie}; PREF hl: ${evidence.configuration.prefCookieLanguage || 'unspecified'}; document UI language and ytcfg HL recorded separately.`,
+    `Requested session: ${evidence.configuration.sessionVariantRequested || 'none'}; visible-control validation: ${evidence.configuration.sessionVariantValidation}.`,
     '',
     '| Phase 0 question | Status | Evidence / blocker |',
     '| --- | --- | --- |',
@@ -441,7 +542,7 @@ function renderReport(evidence) {
     '',
     'Fixture contains statuses, counts, safe field names, asset variants, language codes, and booleans only. It contains no HAR, cookies, tokens, visitor data, account IDs, video IDs, titles, or raw request URLs.',
     '',
-    'Run `SPIKE_SESSION_VARIANT=logged-out SPIKE_VIDEO_MATRIX=<exact-count JSON> node tools/spike/run.mjs` with the persistent Chromium session available. Set `SPIKE_VIDEO_MATRIX` to exact arrays for `title` (5), `thumbnail` (2), `audio` (2), `chapters` (2), and `channelBranding` (2); script applies German `PREF`, reuses one context and one page, and never infers login state. Use `--offline` to write a blocked report without connecting.',
+    'Run `SPIKE_SESSION_VARIANT=logged-out SPIKE_VIDEO_MATRIX=<exact-count JSON> node tools/spike/run.mjs` with the persistent Chromium session available. Set `SPIKE_VIDEO_MATRIX` to exact arrays for `title` (5), `thumbnail` (2), `audio` (2), `chapters` (2), and `channelBranding` (2); script validates PREF format, separates cookie preference from rendered UI language, checks requested session against visible controls, reuses one context and one page, and never launches or closes Chromium. Use `--offline` to write a blocked report without connecting.',
     '',
   );
   if (evidence.configuration.error) {
@@ -450,33 +551,62 @@ function renderReport(evidence) {
   return lines.join('\n');
 }
 
-async function writeReport(evidence) {
-  const safeEvidence = redactEvidence(evidence);
-  await writeRedactedJson(fixturePath, safeEvidence);
-  await mkdir(dirname(reportPath), { recursive: true });
-  const temporaryPath = `${reportPath}.tmp`;
+export async function writeReport(evidence, paths = {}) {
+  const outputFixturePath = paths.fixturePath || fixturePath;
+  const outputReportPath = paths.reportPath || reportPath;
+  let previousEvidence = null;
+  try {
+    previousEvidence = JSON.parse(await readFile(outputFixturePath, 'utf8'));
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+  const mergedEvidence = {
+    ...evidence,
+    configuration: {
+      ...evidence.configuration,
+      sessionVariants: mergeSessionVariants(
+        previousEvidence?.configuration?.sessionVariants,
+        evidence.configuration?.sessionVariants,
+      ),
+    },
+  };
+  const safeEvidence = redactEvidence(mergedEvidence);
+  await writeRedactedJson(outputFixturePath, safeEvidence);
+  await mkdir(dirname(outputReportPath), { recursive: true });
+  const temporaryPath = `${outputReportPath}.tmp`;
   try {
     await writeFile(temporaryPath, renderReport(safeEvidence), { mode: 0o600 });
-    await rename(temporaryPath, reportPath);
+    await rename(temporaryPath, outputReportPath);
   } catch (error) {
     await rm(temporaryPath, { force: true });
     throw error;
   }
 }
 
-const offline = process.argv.includes('--offline');
-const { matrix, error: configError } = parseVideoMatrix(process.env.SPIKE_VIDEO_MATRIX, { allowEmpty: offline });
-const result = offline
-  ? {
-    evidence: blockedEvidence(
-      process.argv.includes('--browser-unavailable')
-        ? 'Launcher status reported running=false; live probing stopped without retry or browser launch.'
-        : 'Live probing skipped by --offline; no CDP status check was made.',
-      matrix,
-      configError,
-    ),
-  }
-  : await collectLive(matrix, configError);
+export async function main(argv = process.argv, env = process.env) {
+  const offline = argv.includes('--offline');
+  const { matrix, error: configError } = parseVideoMatrix(env.SPIKE_VIDEO_MATRIX, { allowEmpty: offline });
+  const result = offline
+    ? {
+      evidence: blockedEvidence(
+        argv.includes('--browser-unavailable')
+          ? 'Launcher status reported running=false; live probing stopped without retry or browser launch.'
+          : 'Live probing skipped by --offline; no CDP status check was made.',
+        matrix,
+        configError,
+        env.SPIKE_SESSION_VARIANT,
+      ),
+    }
+    : await collectLive(matrix, configError, {
+      sessionVariant: env.SPIKE_SESSION_VARIANT,
+      prefRaw: env.SPIKE_PREF,
+    });
 
-await writeReport(result.evidence);
-process.stdout.write(`Live evidence: ${result.evidence.live.status}. Report and sanitized fixture written.\n`);
+  await writeReport(result.evidence);
+  process.stdout.write(`Live evidence: ${result.evidence.live.status}. Report and sanitized fixture written.\n`);
+  return result;
+}
+
+if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
+  await main();
+}

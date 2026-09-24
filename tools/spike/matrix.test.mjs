@@ -6,7 +6,10 @@ const video = 'dQw4w9WgXcQ';
 
 function validMatrix() {
   return JSON.stringify(Object.fromEntries(
-    Object.entries(REQUIRED_SAMPLES).map(([category, count]) => [category, Array(count).fill(video)]),
+    Object.entries(REQUIRED_SAMPLES).map(([category, count]) => [
+      category,
+      Array.from({ length: count }, (_, index) => `${String(index + 1).padStart(11, '0')}`),
+    ]),
   ));
 }
 
@@ -24,6 +27,23 @@ test('rejects undersized live matrices with actionable configuration error', () 
 
   assert.match(result.error, /exact sample counts/i);
   assert.match(result.error, /title: 5/);
+});
+
+test('rejects duplicate video IDs within a category', () => {
+  const matrix = JSON.parse(validMatrix());
+  matrix.title[1] = matrix.title[0];
+
+  const result = parseVideoMatrix(JSON.stringify(matrix));
+
+  assert.match(result.error, /duplicate/i);
+  assert.match(result.error, /title/);
+});
+
+test('allows the same video ID in different categories', () => {
+  const matrix = JSON.parse(validMatrix());
+  matrix.thumbnail[0] = matrix.title[0];
+
+  assert.equal(parseVideoMatrix(JSON.stringify(matrix)).error, null);
 });
 
 test('allows empty matrix only for offline blocked report generation', () => {

@@ -28,6 +28,9 @@ export function parseVideoMatrix(raw, { allowEmpty = false } = {}) {
       if (!Array.isArray(values) || values.length !== expected || values.some(value => typeof value !== 'string' || !VIDEO_ID.test(value))) {
         throw new Error(`exact sample counts: ${category}: ${expected}`);
       }
+      if (new Set(values).size !== values.length) {
+        throw new Error(`duplicate video IDs within ${category}`);
+      }
       return [category, values];
     }));
     return { matrix, error: null };
