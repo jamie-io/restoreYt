@@ -14,9 +14,13 @@ const videoC = 'ccccccccccc';
 class FakeImage {
   attributes = new Map([['src', '']]);
   listeners = new Map();
+  srcWrites = [];
 
   get src() { return this.attributes.get('src') ?? ''; }
-  set src(value) { this.attributes.set('src', value); }
+  set src(value) {
+    this.srcWrites.push(value);
+    this.attributes.set('src', value);
+  }
   get currentSrc() { return this.src; }
   getAttribute(name) { return this.attributes.has(name) ? this.attributes.get(name) : null; }
   setAttribute(name, value) { this.attributes.set(name, value); }
@@ -33,7 +37,7 @@ class FakeImage {
   getBoundingClientRect() { return { width: 160, height: 90 }; }
 }
 
-function createRuntimeHarness({ image, title, href = 'https://www.youtube.com/' } = {}) {
+function createRuntimeHarness({ image, title, description, href = 'https://www.youtube.com/' } = {}) {
   const handlers = new Map();
   const document = {
     body: {},
@@ -41,12 +45,23 @@ function createRuntimeHarness({ image, title, href = 'https://www.youtube.com/' 
     querySelector: vi.fn(() => null),
     querySelectorAll(selector) {
       if (selector.startsWith('img[')) return image ? [image] : [];
+      if (selector.startsWith('#description')) return description ? [description] : [];
       if (
         selector.startsWith('#channel-header')
         || selector.startsWith('#page-header')
         || selector.startsWith('h1.')
       ) return title ? [title] : [];
       return [];
+    },
+    createTextNode(textContent) { return { nodeType: 3, textContent }; },
+    createElement(tagName) {
+      return {
+        tagName: tagName.toUpperCase(),
+        attributes: {},
+        setAttribute(name, value) { this.attributes[name] = value; },
+        get textContent() { return this._textContent ?? ''; },
+        set textContent(value) { this._textContent = value; },
+      };
     },
   };
   const window = {
@@ -66,6 +81,33 @@ function deferred() {
   let resolve;
   const promise = new Promise(done => { resolve = done; });
   return { promise, resolve };
+}
+
+function runtimeSettings(overrides = {}) {
+  return {
+    enabled: true,
+    untranslateTitle: false,
+    untranslateThumbnail: false,
+    untranslateDescription: false,
+    untranslateChapters: false,
+    untranslateAudio: false,
+    untranslateChannelBranding: false,
+    whitelistChannels: [],
+    ...overrides,
+  };
+}
+
+function videoDetails(videoId, overrides = {}) {
+  return {
+    videoId,
+    title: 'Original title',
+    author: 'Creator',
+    channelId: null,
+    thumbnailUrl: null,
+    lengthSeconds: '120',
+    shortDescription: null,
+    ...overrides,
+  };
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -103,6 +145,174 @@ describe('feature runtime decisions', () => {
     expect(buildFeaturePlan({ enabled: false })).toEqual([]);
   });
 
+  it('does not restore title or description from a response for another video', async () => {
+    const title = { textContent: 'Translated title', closest: () => null };
+    const description = {
+      textContent: 'Translated description',
+      replaceChildren(...children) {
+        this.children = children;
+        this.textContent = children.map(child => child.tagName === 'BR' ? '\n' : child.textContent).join('');
+      },
+      getBoundingClientRect() { return { width: 400, height: 80 }; },
+    };
+    const api = {
+      extractVideoId(url) { return new URL(url).searchParams.get('v'); },
+      getVideoDetails: vi.fn().mockResolvedValue(videoDetails(videoB, { shortDescription: 'Original description' })),
+      getChannelDetails: vi.fn(),
+    };
+    const { document, window } = createRuntimeHarness({
+      title,
+      description,
+      href: `https://www.youtube.com/watch?v=${videoA}`,
+    });
+    vi.stubGlobal('HTMLAnchorElement', class FakeAnchor {});
+    vi.stubGlobal('getComputedStyle', () => ({ display: 'block', visibility: 'visible', opacity: '1' }));
+    const runtime = createFeatureRuntime({
+      document,
+      window,
+      api,
+      settings: runtimeSettings({ untranslateTitle: true, untranslateDescription: true }),
+    });
+
+    await runtime.process();
+
+    expect(title.textContent).toBe('Translated title');
+    expect(description.textContent).toBe('Translated description');
+
+    api.getVideoDetails.mockResolvedValue(videoDetails(videoA, { shortDescription: 'Original description' }));
+    await runtime.process();
+
+    expect(title.textContent).toBe('Original title');
+    expect(description.textContent).toBe('Original description');
+  });
+
+  it('restores description as safe links and line breaks using DOM nodes', async () => {
+    const description = {
+      textContent: 'Translated description',
+      children: [],
+      replaceChildren(...children) {
+        this.children = children;
+        this.textContent = children.map(child => child.tagName === 'BR' ? '\n' : child.textContent).join('');
+      },
+      getBoundingClientRect() { return { width: 400, height: 80 }; },
+    };
+    const api = {
+      extractVideoId(url) { return new URL(url).searchParams.get('v'); },
+      getVideoDetails: vi.fn().mockResolvedValue(videoDetails(videoA, {
+        shortDescription: 'Original line\nVisit https://example.com/a?x=1&y=2 and https://example.com/a_(b). javascript:alert(1)',
+      })),
+      getChannelDetails: vi.fn(),
+    };
+    const { document, window } = createRuntimeHarness({
+      description,
+      href: `https://www.youtube.com/watch?v=${videoA}`,
+    });
+    vi.stubGlobal('HTMLAnchorElement', class FakeAnchor {});
+    vi.stubGlobal('getComputedStyle', () => ({ display: 'block', visibility: 'visible', opacity: '1' }));
+    const runtime = createFeatureRuntime({
+      document,
+      window,
+      api,
+      settings: runtimeSettings({ untranslateDescription: true }),
+    });
+
+    await runtime.process();
+
+    expect(description.textContent).toBe('Original line\nVisit https://example.com/a?x=1&y=2 and https://example.com/a_(b). javascript:alert(1)');
+    expect(description.children.map(child => child.tagName ?? child.nodeType)).toEqual([3, 'BR', 3, 'A', 3, 'A', 3, 3]);
+    expect(description.children[5]).toMatchObject({
+      attributes: { href: 'https://example.com/a_(b)' },
+      textContent: 'https://example.com/a_(b)',
+    });
+    expect(description.children[3]).toMatchObject({
+      tagName: 'A',
+      attributes: { href: 'https://example.com/a?x=1&y=2', rel: 'noopener noreferrer' },
+      textContent: 'https://example.com/a?x=1&y=2',
+    });
+  });
+
+  it('does not write thumbnail src when API original-thumbnail evidence is missing', async () => {
+    vi.stubGlobal('HTMLImageElement', FakeImage);
+    vi.stubGlobal('HTMLAnchorElement', class FakeAnchor {});
+    vi.stubGlobal('getComputedStyle', () => ({ display: 'block', visibility: 'visible', opacity: '1' }));
+    const image = new FakeImage();
+    image.src = `https://i.ytimg.com/vi/${videoA}/hqdefault.jpg`;
+    image.srcWrites.length = 0;
+    const { document, window } = createRuntimeHarness({ image, href: `https://www.youtube.com/watch?v=${videoA}` });
+    const api = {
+      extractVideoId(url) { return new URL(url).pathname.split('/')[2] || null; },
+      getVideoDetails: vi.fn().mockResolvedValue(videoDetails(videoA)),
+      getChannelDetails: vi.fn(),
+    };
+    const runtime = createFeatureRuntime({
+      document,
+      window,
+      api,
+      settings: runtimeSettings({ untranslateThumbnail: true }),
+    });
+
+    await runtime.process();
+
+    expect(image.srcWrites).toEqual([]);
+    expect(image.listeners.size).toBe(0);
+  });
+
+  it('does not write thumbnail src when API URL identifies another video', async () => {
+    vi.stubGlobal('HTMLImageElement', FakeImage);
+    vi.stubGlobal('HTMLAnchorElement', class FakeAnchor {});
+    vi.stubGlobal('getComputedStyle', () => ({ display: 'block', visibility: 'visible', opacity: '1' }));
+    const image = new FakeImage();
+    image.src = `https://i.ytimg.com/vi/${videoA}/hqdefault.jpg`;
+    image.srcWrites.length = 0;
+    const { document, window } = createRuntimeHarness({ image, href: `https://www.youtube.com/watch?v=${videoA}` });
+    const api = {
+      extractVideoId(url) { return new URL(url).pathname.split('/')[2] || null; },
+      getVideoDetails: vi.fn().mockResolvedValue(videoDetails(videoA, {
+        thumbnailUrl: `https://i.ytimg.com/vi/${videoB}/hqdefault.jpg`,
+      })),
+      getChannelDetails: vi.fn(),
+    };
+    const runtime = createFeatureRuntime({
+      document,
+      window,
+      api,
+      settings: runtimeSettings({ untranslateThumbnail: true }),
+    });
+
+    await runtime.process();
+
+    expect(image.srcWrites).toEqual([]);
+    expect(image.listeners.size).toBe(0);
+  });
+
+  it('does not write thumbnail src when API evidence already matches image src', async () => {
+    vi.stubGlobal('HTMLImageElement', FakeImage);
+    vi.stubGlobal('HTMLAnchorElement', class FakeAnchor {});
+    vi.stubGlobal('getComputedStyle', () => ({ display: 'block', visibility: 'visible', opacity: '1' }));
+    const image = new FakeImage();
+    image.src = `https://i.ytimg.com/vi/${videoA}/hqdefault.jpg?tracking=1`;
+    image.srcWrites.length = 0;
+    const { document, window } = createRuntimeHarness({ image, href: `https://www.youtube.com/watch?v=${videoA}` });
+    const api = {
+      extractVideoId(url) { return new URL(url).pathname.split('/')[2] || null; },
+      getVideoDetails: vi.fn().mockResolvedValue(videoDetails(videoA, {
+        thumbnailUrl: `https://i.ytimg.com/vi/${videoA}/hqdefault.jpg`,
+      })),
+      getChannelDetails: vi.fn(),
+    };
+    const runtime = createFeatureRuntime({
+      document,
+      window,
+      api,
+      settings: runtimeSettings({ untranslateThumbnail: true }),
+    });
+
+    await runtime.process();
+
+    expect(image.srcWrites).toEqual([]);
+    expect(image.listeners.size).toBe(0);
+  });
+
   it('ignores stale thumbnail work after navigation and permits same image to process its next video', async () => {
     vi.stubGlobal('HTMLImageElement', FakeImage);
     vi.stubGlobal('HTMLAnchorElement', class FakeAnchor {});
@@ -138,17 +348,17 @@ describe('feature runtime decisions', () => {
     image.src = `https://i.ytimg.com/vi/${videoB}/hqdefault.jpg`;
     window.navigate(`https://www.youtube.com/watch?v=${videoB}`);
     await vi.waitFor(() => expect(api.getVideoDetails).toHaveBeenCalledWith(videoB));
-    second.resolve({ channelId: null });
-    await vi.waitFor(() => expect(image.src).toContain(`/vi/${videoB}/`));
-    first.resolve({ channelId: null });
+    second.resolve(videoDetails(videoB, { thumbnailUrl: `https://i.ytimg.com/vi/${videoB}/maxresdefault.jpg` }));
+    await vi.waitFor(() => expect(image.src).toBe(`https://i.ytimg.com/vi/${videoB}/maxresdefault.jpg`));
+    first.resolve(videoDetails(videoA, { thumbnailUrl: `https://i.ytimg.com/vi/${videoA}/maxresdefault.jpg` }));
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(image.src).toContain(`/vi/${videoB}/`);
 
     image.src = `https://i.ytimg.com/vi/${videoC}/hqdefault.jpg`;
     const thirdProcessing = runtime.process();
     await vi.waitFor(() => expect(api.getVideoDetails).toHaveBeenCalledWith(videoC));
-    third.resolve({ channelId: null });
-    await vi.waitFor(() => expect(image.src).toContain(`/vi/${videoC}/`));
+    third.resolve(videoDetails(videoC, { thumbnailUrl: `https://i.ytimg.com/vi/${videoC}/maxresdefault.jpg` }));
+    await vi.waitFor(() => expect(image.src).toBe(`https://i.ytimg.com/vi/${videoC}/maxresdefault.jpg`));
     await thirdProcessing;
     runtime.stop();
   });

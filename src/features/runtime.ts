@@ -126,6 +126,83 @@ function replaceText(element: Element, text: string): void {
   element.textContent = text;
 }
 
+function appendDescriptionLine(document: Document, line: string, nodes: Node[]): void {
+  const urlPattern = /https?:\/\/[^\s<>"']+/gi;
+  let cursor = 0;
+  for (const match of line.matchAll(urlPattern)) {
+    const matchedUrl = match[0];
+    const start = match.index;
+    if (start === undefined) continue;
+    let urlText = matchedUrl;
+    while (/[.,!?;:]$/.test(urlText)) urlText = urlText.slice(0, -1);
+    while (urlText.endsWith(')') && (urlText.match(/\)/g)?.length ?? 0) > (urlText.match(/\(/g)?.length ?? 0)) {
+      urlText = urlText.slice(0, -1);
+    }
+    while (urlText.endsWith(']') && (urlText.match(/\]/g)?.length ?? 0) > (urlText.match(/\[/g)?.length ?? 0)) {
+      urlText = urlText.slice(0, -1);
+    }
+    if (!urlText) continue;
+    const precedingText = line.slice(cursor, start);
+    if (precedingText) nodes.push(document.createTextNode(precedingText));
+    let safeUrl: URL | null = null;
+    try {
+      const parsed = new URL(urlText);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') safeUrl = parsed;
+    } catch {
+      safeUrl = null;
+    }
+    if (!safeUrl) {
+      nodes.push(document.createTextNode(matchedUrl));
+    } else {
+      const anchor = document.createElement('a');
+      anchor.setAttribute('href', safeUrl.href);
+      anchor.setAttribute('rel', 'noopener noreferrer');
+      anchor.textContent = urlText;
+      nodes.push(anchor);
+      if (urlText.length < matchedUrl.length) nodes.push(document.createTextNode(matchedUrl.slice(urlText.length)));
+    }
+    cursor = start + matchedUrl.length;
+  }
+  const trailingText = line.slice(cursor);
+  if (trailingText) nodes.push(document.createTextNode(trailingText));
+}
+
+function descriptionNodes(document: Document, description: string): Node[] {
+  const nodes: Node[] = [];
+  const lines = description.split(/\r\n|\r|\n/);
+  lines.forEach((line, index) => {
+    appendDescriptionLine(document, line, nodes);
+    if (index < lines.length - 1) nodes.push(document.createElement('br'));
+  });
+  return nodes;
+}
+
+function originalThumbnailUrl(value: string | null, videoId: string): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (
+      url.protocol !== 'https:'
+      || !['i.ytimg.com', 'img.youtube.com'].includes(url.hostname)
+      || !url.pathname.split('/').includes(videoId)
+    ) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+function comparableImageUrl(value: string, baseUrl: string): string | null {
+  try {
+    const url = new URL(value, baseUrl);
+    url.search = '';
+    url.hash = '';
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
 function isWhitelisted(settings: Settings, channelId: string | null): boolean {
   return Boolean(channelId && settings.whitelistChannels.includes(channelId));
 }
@@ -151,13 +228,15 @@ export function createFeatureRuntime(options: FeatureRuntimeOptions): FeatureRun
     }
   };
 
+  // Phase 0 has no live translation signatures. Text restores require matching-video API fields
+  // that differ from displayed text. Thumbnail restores also require a matching-video API URL.
   const processTitles = async (): Promise<void> => {
     await Promise.all(uniqueElements(document, getSelectors('titleElements')).filter(isVisible).map(async element => {
       const videoId = videoIdForElement(element, api, window);
       if (!videoId) return;
       const startEpoch = epoch.value;
       const details = await api.getVideoDetails(videoId);
-      if (startEpoch !== epoch.value || !details || isWhitelisted(settings, details.channelId)) return;
+      if (startEpoch !== epoch.value || !details || details.videoId !== videoId || isWhitelisted(settings, details.channelId)) return;
       if (!shouldReplaceText(element.textContent, details.title)) return;
       if (processedTitles.get(element) === details.title) return;
       replaceText(element, details.title);
@@ -172,10 +251,10 @@ export function createFeatureRuntime(options: FeatureRuntimeOptions): FeatureRun
     const startEpoch = epoch.value;
     const details = await api.getVideoDetails(videoId);
     const originalDescription = details?.shortDescription;
-    if (startEpoch !== epoch.value || !originalDescription) return;
+    if (startEpoch !== epoch.value || details?.videoId !== videoId || !originalDescription) return;
     containers.forEach(container => {
       if (!shouldReplaceText(container.textContent, originalDescription) || processedDescriptions.get(container) === originalDescription) return;
-      replaceText(container, originalDescription);
+      container.replaceChildren(...descriptionNodes(document, originalDescription));
       processedDescriptions.set(container, originalDescription);
     });
   };
@@ -187,13 +266,20 @@ export function createFeatureRuntime(options: FeatureRuntimeOptions): FeatureRun
       startEpoch !== epoch.value
       || videoIdForThumbnail(image, api, window) !== videoId
       || processedThumbnails.get(image) === videoId
-      || isWhitelisted(settings, details?.channelId ?? null)
+      || !details
+      || details.videoId !== videoId
+      || isWhitelisted(settings, details.channelId)
     ) return;
+    const evidenceUrl = originalThumbnailUrl(details.thumbnailUrl, videoId);
+    if (!evidenceUrl) return;
     const originalSrc = image.getAttribute('src');
     const originalDataSrc = image.getAttribute('data-src');
     const current = originalSrc || originalDataSrc || '';
     if (!current || !/(hq720|hqdefault|sddefault|mqdefault)/i.test(current)) return;
-    const candidates = buildThumbnailCandidates(videoId);
+    if (comparableImageUrl(current, window.location.href) === comparableImageUrl(evidenceUrl, window.location.href)) return;
+    const candidates = [evidenceUrl, ...buildThumbnailCandidates(videoId).filter(candidate => (
+      comparableImageUrl(candidate, window.location.href) !== comparableImageUrl(evidenceUrl, window.location.href)
+    ))];
     if (candidates.length === 0) return;
     const firstCandidate = candidates[0];
     if (!firstCandidate) return;
