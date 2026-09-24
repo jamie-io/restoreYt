@@ -1,6 +1,6 @@
 # Contributor Code of Conduct
 
-This Code of Conduct outlines our expectations for participation in the Deslopify project and its community. Please read and follow these guidelines to make Deslopify a welcoming and positive environment for all contributors.
+This Code of Conduct outlines expectations for participation in the restoreyt project and community. Please read and follow it to keep restoreyt welcoming and inclusive.
 
 ## Our Commitment
 

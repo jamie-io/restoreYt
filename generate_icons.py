@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate branded icons for the Deslopify extension.
+"""Generate branded icons for the restoreyt extension.
 
 Requires ImageMagick (the `convert` or `magick` command).
 Run: python3 generate_icons.py
