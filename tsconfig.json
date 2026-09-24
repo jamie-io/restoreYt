@@ -13,5 +13,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src/core/**/*.ts", "src/platform/**/*.ts"]
+  "include": ["src/**/*.ts"]
 }

@@ -6,6 +6,16 @@ const api = name => {
 };
 
 describe('esbuild configuration', () => {
+  it('declares stable runtime bundles for extension entrypoints', () => {
+    expect(config.RUNTIME_ENTRIES).toEqual({
+      background: 'src/background.ts',
+      content: 'src/content/bootstrap.ts',
+      main: 'src/main.ts',
+      popup: 'src/popup/popup.js',
+      options: 'src/options/options.js',
+    });
+  });
+
   it('prepares independent browser bundles for future extension entry points', () => {
     const createBuildOptions = api('createBuildOptions');
     const entryPoints = {

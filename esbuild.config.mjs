@@ -7,6 +7,14 @@ export const FOUNDATION_ENTRIES = Object.freeze({
   platform: 'src/platform/index.ts',
 });
 
+export const RUNTIME_ENTRIES = Object.freeze({
+  background: 'src/background.ts',
+  content: 'src/content/bootstrap.ts',
+  main: 'src/main.ts',
+  popup: 'src/popup/popup.js',
+  options: 'src/options/options.js',
+});
+
 export function createBuildOptions(entryPoints, options = {}) {
   if (!entryPoints || typeof entryPoints !== 'object' || Array.isArray(entryPoints)) {
     throw new TypeError('Entry points must be a named object of file paths');
@@ -45,5 +53,5 @@ export async function buildBundles(entryPoints = FOUNDATION_ENTRIES, { watch = f
 
 const thisFile = fileURLToPath(import.meta.url);
 if (process.argv[1] && resolve(process.argv[1]) === thisFile) {
-  await buildBundles(FOUNDATION_ENTRIES, { watch: process.argv.includes('--watch') });
+  await buildBundles(RUNTIME_ENTRIES, { watch: process.argv.includes('--watch') });
 }
