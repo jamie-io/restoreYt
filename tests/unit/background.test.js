@@ -51,6 +51,26 @@ describe('background controller', () => {
     ]);
   });
 
+  it('restores valid feature states and ignores malformed entries from local storage', async () => {
+    const api = makeApi();
+    await api.storage.local.set({
+      'restoreyt:feature-states': {
+        titles: 'disabled',
+        thumbnails: 'active',
+        audio: 'error',
+        invalid: 'unknown',
+        nested: { status: 'disabled' },
+      },
+    });
+    const controller = background.createBackgroundController(api);
+
+    controller.start();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const response = await controller.handleMessage({ type: 'restoreyt:get-diagnostics' });
+
+    expect(response.features).toEqual({ titles: 'disabled', thumbnails: 'active', audio: 'error' });
+  });
+
   it('updates badge state without throwing when optional APIs are absent', async () => {
     const api = makeApi();
     delete api.action;

@@ -78,6 +78,24 @@ export function createBackgroundController(
     await api?.storage?.local?.set?.({ [FEATURE_STATE_KEY]: values });
   };
 
+  const restoreFeatureStates = async (): Promise<void> => {
+    const storage = api?.storage?.local;
+    if (!storage?.get) return;
+    const defaults = { [FEATURE_STATE_KEY]: {} };
+    const result = storage.get(defaults);
+    const values = result && typeof result.then === 'function'
+      ? await result
+      : await new Promise<Record<string, unknown>>(resolve => storage.get?.(defaults, resolve));
+    const saved = values[FEATURE_STATE_KEY];
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
+
+    for (const [feature, status] of Object.entries(saved)) {
+      if (status === 'active' || status === 'disabled' || status === 'error') {
+        startedFeatures.set(feature, status);
+      }
+    }
+  };
+
   const fanOutSettings = async (changes: Record<string, unknown>): Promise<void> => {
     const tabs = await api?.tabs?.query?.({}) ?? [];
     await Promise.allSettled(
@@ -120,6 +138,7 @@ export function createBackgroundController(
     start() {
       if (started) return;
       started = true;
+      void restoreFeatureStates().catch(() => undefined);
       api?.runtime?.onMessage?.addListener(message => handleMessage(message));
       api?.storage?.onChanged?.addListener((changes, areaName) => {
         if (areaName === 'local') void fanOutSettings(changes);
