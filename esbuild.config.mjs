@@ -23,14 +23,14 @@ export function createBuildOptions(entryPoints, options = {}) {
   }
 
   return {
+    ...options,
     entryPoints: Object.fromEntries(entries),
     bundle: true,
     platform: 'browser',
     format: 'iife',
     target: ['chrome121', 'firefox115'],
-    outdir: 'build',
-    entryNames: '[name]',
-    ...options,
+    outdir: options.outdir ?? 'build',
+    entryNames: options.entryNames ?? '[name]',
   };
 }
 

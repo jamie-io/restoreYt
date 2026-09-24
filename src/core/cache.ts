@@ -26,6 +26,11 @@ export function createLruCache<Value>(options: LruCacheOptions = {}): LruCache<V
   if (!Number.isInteger(capacity) || capacity < 1) throw new RangeError('capacity must be a positive integer');
 
   const entries = new Map<string, CacheEntry<Value>>();
+  const removeExpiredEntries = (currentTime: number): void => {
+    for (const [key, entry] of entries) {
+      if (entry.expiresAt <= currentTime) entries.delete(key);
+    }
+  };
 
   return {
     get(key) {
@@ -40,9 +45,11 @@ export function createLruCache<Value>(options: LruCacheOptions = {}): LruCache<V
       return entry.value;
     },
     set(key, value) {
+      const currentTime = now();
+      removeExpiredEntries(currentTime);
       const ttl = value === null ? negativeTtlMs : ttlMs;
       entries.delete(key);
-      entries.set(key, { value, expiresAt: now() + ttl });
+      entries.set(key, { value, expiresAt: currentTime + ttl });
       while (entries.size > capacity) {
         const oldestKey = entries.keys().next().value;
         if (oldestKey === undefined) break;
@@ -56,6 +63,7 @@ export function createLruCache<Value>(options: LruCacheOptions = {}): LruCache<V
       entries.clear();
     },
     get size() {
+      removeExpiredEntries(now());
       return entries.size;
     },
   };
