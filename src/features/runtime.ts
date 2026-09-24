@@ -17,6 +17,8 @@ export interface FeatureRuntimeOptions {
   api: InnerTubeClient;
   settings: Settings;
   diagnostics?: DiagnosticsBuffer;
+  /** Required runtime opt-in while live evidence gates remain blocked, regardless of default-on settings. */
+  evidenceOptIn?: { audio?: boolean; channelBranding?: boolean };
 }
 
 export interface FeatureRuntime {
@@ -39,14 +41,17 @@ export function findOriginalAudioTrack(tracks: unknown): { index: number; track:
   return null;
 }
 
-export function buildFeaturePlan(settings: Partial<Settings>): string[] {
+export function buildFeaturePlan(
+  settings: Partial<Settings>,
+  evidenceOptIn: { audio?: boolean; channelBranding?: boolean } = {},
+): string[] {
   if (settings.enabled === false) return [];
   return [
     settings.untranslateTitle !== false ? 'title' : null,
     settings.untranslateThumbnail !== false ? 'thumbnail' : null,
     settings.untranslateDescription !== false ? 'description' : null,
-    settings.untranslateAudio !== false ? 'audio' : null,
-    settings.untranslateChannelBranding !== false ? 'channelBranding' : null,
+    settings.untranslateAudio !== false && evidenceOptIn.audio === true ? 'audio' : null,
+    settings.untranslateChannelBranding !== false && evidenceOptIn.channelBranding === true ? 'channelBranding' : null,
   ].filter((feature): feature is string => feature !== null);
 }
 
@@ -69,13 +74,52 @@ function isVisible(element: Element): boolean {
   }
 }
 
-function videoIdForElement(element: Element, api: InnerTubeClient, window: Window): string | null {
+function linkedVideoIdForElement(element: Element, api: InnerTubeClient): string | null {
   const link = element.closest('a[href]');
   if (link instanceof HTMLAnchorElement) return api.extractVideoId(link.href);
   const container = element.closest('ytd-video-renderer, ytd-rich-item-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer, yt-lockup-view-model');
   const containerLink = container?.querySelector('a[href*="/watch"], a[href*="/shorts/"]');
   if (containerLink instanceof HTMLAnchorElement) return api.extractVideoId(containerLink.href);
+  return null;
+}
+
+function videoIdForElement(element: Element, api: InnerTubeClient, window: Window): string | null {
+  const linkedVideoId = linkedVideoIdForElement(element, api);
+  if (linkedVideoId) return linkedVideoId;
   return api.extractVideoId(window.location.href);
+}
+
+function videoIdForThumbnail(image: HTMLImageElement, api: InnerTubeClient, window: Window): string | null {
+  const linkedVideoId = linkedVideoIdForElement(image, api);
+  if (linkedVideoId) return linkedVideoId;
+  const sources = [image.getAttribute('src'), image.getAttribute('data-src'), image.currentSrc, image.src];
+  for (const source of sources) {
+    if (!source) continue;
+    const videoId = api.extractVideoId(source);
+    if (videoId) return videoId;
+  }
+  return api.extractVideoId(window.location.href);
+}
+
+function channelIdFromUrl(url: string): string | null {
+  try {
+    return new URL(url).pathname.match(/^\/channel\/([^/?#]+)/)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function currentChannelContext(document: Document, window: Window): { channelId: string; title: Element } | null {
+  const title = uniqueElements(document, getSelectors('channelTitle'))[0];
+  if (!title) return null;
+  const routeChannelId = channelIdFromUrl(window.location.href);
+  if (routeChannelId) return { channelId: routeChannelId, title };
+
+  const header = title.closest('#page-header') ?? title.closest('#channel-header');
+  const link = header?.querySelector('a[href*="/channel/"]');
+  if (!(link instanceof HTMLAnchorElement)) return null;
+  const channelId = channelIdFromUrl(link.href);
+  return channelId ? { channelId, title } : null;
 }
 
 function replaceText(element: Element, text: string): void {
@@ -94,7 +138,7 @@ export function createFeatureRuntime(options: FeatureRuntimeOptions): FeatureRun
   const thumbnailQueue = createRequestQueue({ concurrency: 4 });
   const processedTitles = new WeakMap<Element, string>();
   const processedDescriptions = new WeakMap<Element, string>();
-  const processedThumbnails = new WeakSet<HTMLImageElement>();
+  const processedThumbnails = new WeakMap<HTMLImageElement, string>();
   const processedAudioPlayers = new WeakSet<Element>();
   let observer: MutationObserver | null = null;
   let started = false;
@@ -136,8 +180,15 @@ export function createFeatureRuntime(options: FeatureRuntimeOptions): FeatureRun
     });
   };
 
-  const restoreThumbnail = async (image: HTMLImageElement, videoId: string): Promise<void> => {
-    if (processedThumbnails.has(image) || isWhitelisted(settings, (await api.getVideoDetails(videoId))?.channelId ?? null)) return;
+  const restoreThumbnail = async (image: HTMLImageElement, videoId: string, startEpoch: number): Promise<void> => {
+    if (processedThumbnails.get(image) === videoId) return;
+    const details = await api.getVideoDetails(videoId);
+    if (
+      startEpoch !== epoch.value
+      || videoIdForThumbnail(image, api, window) !== videoId
+      || processedThumbnails.get(image) === videoId
+      || isWhitelisted(settings, details?.channelId ?? null)
+    ) return;
     const originalSrc = image.getAttribute('src');
     const originalDataSrc = image.getAttribute('data-src');
     const current = originalSrc || originalDataSrc || '';
@@ -146,31 +197,46 @@ export function createFeatureRuntime(options: FeatureRuntimeOptions): FeatureRun
     if (candidates.length === 0) return;
     const firstCandidate = candidates[0];
     if (!firstCandidate) return;
-    processedThumbnails.add(image);
+    processedThumbnails.set(image, videoId);
     let candidateIndex = 0;
-    const restore = (): void => {
+    function cleanup(): void {
+      image.removeEventListener('error', onError);
+      image.removeEventListener('load', onLoad);
+    }
+    function restore(): void {
+      cleanup();
       if (originalSrc === null) image.removeAttribute('src');
       else image.setAttribute('src', originalSrc);
       if (originalDataSrc === null) image.removeAttribute('data-src');
       else image.setAttribute('data-src', originalDataSrc);
-    };
-    const onError = (): void => {
+    }
+    function onError(): void {
+      if (
+        startEpoch !== epoch.value
+        || processedThumbnails.get(image) !== videoId
+        || videoIdForThumbnail(image, api, window) !== videoId
+      ) {
+        cleanup();
+        return;
+      }
       candidateIndex += 1;
       const nextCandidate = candidates[candidateIndex];
       if (nextCandidate) image.src = nextCandidate;
       else restore();
-    };
+    }
+    function onLoad(): void { cleanup(); }
     image.addEventListener('error', onError, { once: false });
+    image.addEventListener('load', onLoad, { once: true });
     image.src = firstCandidate;
   };
 
   const processThumbnails = async (): Promise<void> => {
     const images = Array.from(document.querySelectorAll('img[src*="ytimg.com"], img[data-src*="ytimg.com"]'))
       .filter((element): element is HTMLImageElement => element instanceof HTMLImageElement && isVisible(element));
+    const startEpoch = epoch.value;
     await Promise.all(images.map(image => {
-      const src = image.currentSrc || image.src || image.getAttribute('data-src') || '';
-      const videoId = api.extractVideoId(src);
-      return videoId ? thumbnailQueue.run(() => restoreThumbnail(image, videoId), epoch.signal) : Promise.resolve();
+      const videoId = videoIdForThumbnail(image, api, window);
+      return videoId ? thumbnailQueue.run(() => restoreThumbnail(image, videoId, startEpoch), epoch.signal) : Promise.resolve();
     }));
   };
 
@@ -189,18 +255,23 @@ export function createFeatureRuntime(options: FeatureRuntimeOptions): FeatureRun
   };
 
   const processChannelBranding = async (): Promise<void> => {
-    const title = uniqueElements(document, getSelectors('channelTitle'))[0];
-    const link = document.querySelector('a[href*="/channel/"]');
-    if (!title || !(link instanceof HTMLAnchorElement)) return;
-    const match = link.href.match(/\/channel\/([^/?#]+)/);
-    if (!match) return;
-    const details = await api.getChannelDetails(match[1]);
-    if (details?.title && shouldReplaceText(title.textContent, details.title)) replaceText(title, details.title);
+    const context = currentChannelContext(document, window);
+    if (!context) return;
+    const startEpoch = epoch.value;
+    const details = await api.getChannelDetails(context.channelId);
+    const currentContext = currentChannelContext(document, window);
+    if (
+      startEpoch !== epoch.value
+      || currentContext?.channelId !== context.channelId
+      || currentContext.title !== context.title
+      || !document.contains(context.title)
+    ) return;
+    if (details?.title && shouldReplaceText(context.title.textContent, details.title)) replaceText(context.title, details.title);
   };
 
   const process = async (): Promise<void> => {
     if (!settings.enabled) return;
-    const plan = buildFeaturePlan(settings);
+    const plan = buildFeaturePlan(settings, options.evidenceOptIn);
     await Promise.all(plan.map(feature => {
       if (feature === 'title') return runFeature(feature, processTitles);
       if (feature === 'thumbnail') return runFeature(feature, processThumbnails);

@@ -1,7 +1,7 @@
 import { createLruCache, type LruCache } from '../core/cache.js';
 import { createRequestQueue } from '../core/request-queue.js';
 import { withTimeout } from '../core/timeout.js';
-import { isVideoDetailsResponse, type VideoDetailsResponse } from './guards.js';
+import { isRecord, isVideoDetailsResponse, type VideoDetailsResponse } from './guards.js';
 import type { RuntimeClientConfig } from './config.js';
 
 export interface VideoDetails {
@@ -21,6 +21,7 @@ export interface ChannelDetails {
 
 interface FetchResponse {
   ok: boolean;
+  status?: number;
   json: () => Promise<unknown>;
 }
 
@@ -102,53 +103,57 @@ export function createInnerTubeClient(options: InnerTubeClientOptions): InnerTub
     },
   };
 
-  async function request(path: string, body: Record<string, unknown>): Promise<unknown | null> {
-    if (!fetchImpl) return null;
-    try {
-      return await withTimeout(
-        signal => queue.run(async queueSignal => {
-          const combined = new AbortController();
-          const abort = (): void => combined.abort();
-          signal.addEventListener('abort', abort, { once: true });
-          queueSignal.addEventListener('abort', abort, { once: true });
-          try {
-            const response = await fetchImpl(endpoint(path), {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({ context, ...body }),
-              signal: combined.signal,
-            });
-            if (!response.ok) return null;
-            return await response.json();
-          } finally {
-            signal.removeEventListener('abort', abort);
-            queueSignal.removeEventListener('abort', abort);
+  async function request(path: string, body: Record<string, unknown>): Promise<unknown> {
+    if (!fetchImpl) throw new Error(`InnerTube ${path} request unavailable: fetch is not available`);
+    return withTimeout(
+      signal => queue.run(async queueSignal => {
+        const combined = new AbortController();
+        const abort = (): void => combined.abort();
+        signal.addEventListener('abort', abort, { once: true });
+        queueSignal.addEventListener('abort', abort, { once: true });
+        try {
+          const response = await fetchImpl(endpoint(path), {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ context, ...body }),
+            signal: combined.signal,
+          });
+          if (!response.ok) {
+            const status = typeof response.status === 'number' ? ` (HTTP ${response.status})` : ' (HTTP error)';
+            throw new Error(`InnerTube ${path} request failed${status}`);
           }
-        }, signal),
+          return await response.json();
+        } finally {
+          signal.removeEventListener('abort', abort);
+          queueSignal.removeEventListener('abort', abort);
+        }
+      }, signal),
       options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs },
-      );
-    } catch {
-      return null;
-    }
+    );
   }
 
   async function loadVideo(videoId: string): Promise<VideoDetails | null> {
     const response = await request('player', { videoId });
-    if (!isVideoDetailsResponse(response)) return null;
+    if (!isVideoDetailsResponse(response)) throw new Error('Invalid InnerTube player response shape');
+    if (response.videoDetails.videoId !== videoId) throw new Error('InnerTube player response video ID mismatch');
     return asVideoDetails(response);
   }
 
   async function loadChannel(channelId: string): Promise<ChannelDetails | null> {
     const response = await request('browse', { browseId: channelId });
-    if (!response || typeof response !== 'object') return null;
-    const value = response as Record<string, unknown>;
-    const header = value.header as Record<string, unknown> | undefined;
-    const headerRenderer = header?.c4TabbedHeaderRenderer as Record<string, unknown> | undefined;
-    const metadata = value.metadata as Record<string, unknown> | undefined;
-    const metadataRenderer = metadata?.channelMetadataRenderer as Record<string, unknown> | undefined;
+    if (!isRecord(response)) throw new Error('Invalid InnerTube browse response shape');
+    const header = isRecord(response.header) ? response.header : undefined;
+    const headerRenderer = header && isRecord(header.c4TabbedHeaderRenderer) ? header.c4TabbedHeaderRenderer : undefined;
+    const metadata = isRecord(response.metadata) ? response.metadata : undefined;
+    const metadataRenderer = metadata && isRecord(metadata.channelMetadataRenderer) ? metadata.channelMetadataRenderer : undefined;
+    const title = typeof headerRenderer?.title === 'string' ? headerRenderer.title : null;
+    const description = typeof metadataRenderer?.description === 'string' ? metadataRenderer.description : null;
+    if ((!headerRenderer && !metadataRenderer) || (title === null && description === null)) {
+      throw new Error('Invalid InnerTube browse response shape');
+    }
     return {
-      title: typeof headerRenderer?.title === 'string' ? headerRenderer.title : null,
-      description: typeof metadataRenderer?.description === 'string' ? metadataRenderer.description : null,
+      title,
+      description,
     };
   }
 

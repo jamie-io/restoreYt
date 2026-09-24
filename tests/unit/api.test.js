@@ -13,13 +13,13 @@ function response(body, ok = true) {
 }
 
 describe('InnerTube client video details', () => {
-  it('returns null for empty IDs and failed requests', async () => {
+  it('returns null for empty IDs and rejects network failures', async () => {
     const fetchImpl = vi.fn().mockRejectedValue(new Error('Network error'));
     const client = createInnerTubeClient({ config, fetchImpl });
 
     await expect(client.getVideoDetails('')).resolves.toBeNull();
     await expect(client.getVideoDetails(null)).resolves.toBeNull();
-    await expect(client.getVideoDetails('dQw4w9WgXcQ')).resolves.toBeNull();
+    await expect(client.getVideoDetails('dQw4w9WgXcQ')).rejects.toThrow('Network error');
   });
 
   it('returns normalized typed video details and strips thumbnail query strings', async () => {
