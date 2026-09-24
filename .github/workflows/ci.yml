@@ -32,9 +32,11 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npm run versioncheck
       - run: npm run lint
       - run: npm run typecheck --if-present
       - run: npm test
+      - run: npm run test:spike
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - run: npm run build

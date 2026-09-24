@@ -1,18 +1,23 @@
 import { test, expect } from '@playwright/test';
+import { access } from 'node:fs/promises';
+import assert from 'node:assert/strict';
 import { setupExtension, teardownExtension, loadMockWatchPage } from './helpers';
 
 test.describe('restoreyt extension', () => {
   let page;
   let extensionId;
+  let userDataDir;
 
   test.beforeAll(async () => {
     const setup = await setupExtension();
     page = setup.page;
     extensionId = setup.extensionId;
+    userDataDir = setup.userDataDir;
   });
 
   test.afterAll(async () => {
     await teardownExtension();
+    await assert.rejects(access(userDataDir), { code: 'ENOENT' });
   });
 
   test('loads extension service worker', async () => {

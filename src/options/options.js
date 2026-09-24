@@ -48,6 +48,11 @@ async function initialize() {
   const whitelistList = document.getElementById('whitelistList');
   const channelInput = document.getElementById('channelInput');
   const addChannelBtn = document.getElementById('addChannel');
+  channelInput.placeholder = 'Channel ID (UC...)';
+  const channelHelp = channelInput.closest('.section')?.querySelector('p');
+  if (channelHelp) {
+    channelHelp.textContent = 'Channels listed here will keep their translated titles and thumbnails. Enter a channel ID; @handles are not supported.';
+  }
 
   function renderWhitelist() {
     whitelistList.replaceChildren();
@@ -71,7 +76,12 @@ async function initialize() {
 
   function addChannel() {
     const channelId = channelInput.value.trim();
-    if (!channelId || settings.whitelistChannels.includes(channelId)) return;
+    if (!channelId) return;
+    if (channelId.includes('@')) {
+      showStatus('Enter a channel ID; @handles are not supported.', true);
+      return;
+    }
+    if (settings.whitelistChannels.includes(channelId)) return;
     settings.whitelistChannels = [...settings.whitelistChannels, channelId];
     void saveSettings({ whitelistChannels: settings.whitelistChannels });
     channelInput.value = '';

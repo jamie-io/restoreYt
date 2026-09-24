@@ -10,7 +10,7 @@ restoreyt runs locally in your browser. It does not operate a server, collect te
 - YouTube page configuration and InnerTube responses are read only to restore visible metadata.
 - Responses are kept in an in-memory cache and disappear when the extension context ends.
 
-restoreyt does not read or persist cookie values, tokens, account identifiers, video titles in diagnostics, or raw request payloads. Diagnostics are local and export is user initiated.
+restoreyt does not read or persist cookie values, tokens, account identifiers, video titles in diagnostics, or raw request payloads.
 
 ## Network requests
 
