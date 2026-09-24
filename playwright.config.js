@@ -7,26 +7,11 @@ export default defineConfig({
     timeout: 10000
   },
   fullyParallel: false,
-  retries: 1,
+  retries: 0,
   workers: 1,
   reporter: 'list',
   use: {
-    baseURL: 'https://www.youtube.com',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure'
-  },
-  projects: [
-    {
-      name: 'chromium',
-      use: {
-        browserName: 'chromium',
-        launchOptions: {
-          args: [
-            `--disable-extensions-except=${process.cwd()}`,
-            `--load-extension=${process.cwd()}`
-          ]
-        }
-      }
-    }
-  ]
+  }
 });

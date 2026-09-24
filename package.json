@@ -1,19 +1,22 @@
 {
-  "name": "deslopify",
+  "name": "restoreyt",
   "version": "1.0.0",
-  "description": "Remove AI auto-translated titles, thumbnails, descriptions, and audio from YouTube",
+  "description": "Restore original YouTube titles, thumbnails, descriptions, and selected audio",
   "author": "Jamie",
   "license": "MIT",
   "private": false,
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "lint": "eslint src/ tests/",
+    "test:e2e": "npm run build && playwright test",
+    "lint": "eslint src/ tests/ tools/spike/",
     "typecheck": "tsc --noEmit",
     "build": "node ./esbuild.config.mjs",
     "watch": "node ./esbuild.config.mjs --watch",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run build"
+    "package": "npm run build && node scripts/package.mjs",
+    "test:spike": "node --test tools/spike/*.test.mjs",
+    "versioncheck": "node scripts/verify-version.mjs",
+    "verify": "npm run versioncheck && npm run lint && npm run typecheck && npm test && npm run test:spike && npm run build"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",
