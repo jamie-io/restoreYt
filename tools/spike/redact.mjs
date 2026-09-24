@@ -1,12 +1,13 @@
 const REDACTED = '[REDACTED]';
-const SENSITIVE_FIELD = /cookie|sapisid|visitor.?data|account.?id|token|api.?key|authorization|credential|secret/i;
+const SENSITIVE_FIELD = /cookie|sapisid|visitor.?data|account.?id|channel.?id|token|api.?key|authorization|credential|secret/i;
 const PRESENCE_FIELD = /(?:present|visible|readable|available|observed)$/i;
 const URL_PATTERN = /https?:\/\/[^\s"'<>]+/gi;
-const SECRET_ASSIGNMENT = /\b((?:SAPISID(?:HASH)?|VISITOR_DATA|visitorData|access_token|refresh_token|account_id|api_key|authorization))\s*[:=]\s*[^\s,;]+/gi;
+const SECRET_ASSIGNMENT = /\b((?:SAPISID(?:HASH)?|VISITOR_DATA|visitorData|access_token|refresh_token|account_id|channel[_-]?id|api_key|authorization))\s*[:=]\s*[^\s,;]+/gi;
 const COOKIE_ASSIGNMENT = /\b((?:SID|HSID|SSID|APISID|SAPISID|__Secure-[\w-]+))=([^\s;,]+)/gi;
 const BEARER_TOKEN = /\bBearer\s+[^\s,;]+/gi;
+const CHANNEL_PATH = /(^|[\s"'(])\/channel\/[^/?#\s"'<>),.;]+/gi;
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
-const PRIVATE_PATH_SEGMENT = /^(?:vi|shorts|embed|accounts?|users?|token|access_token|session|visitor|auth|api_key)$/i;
+const PRIVATE_PATH_SEGMENT = /^(?:vi|shorts|embed|channel|accounts?|users?|token|access_token|session|visitor|auth|api_key)$/i;
 
 function safeUrl(value) {
   try {
@@ -32,6 +33,7 @@ function redactString(value) {
     .replace(BEARER_TOKEN, 'Bearer [REDACTED]')
     .replace(SECRET_ASSIGNMENT, `$1=${REDACTED}`)
     .replace(COOKIE_ASSIGNMENT, `$1=${REDACTED}`)
+    .replace(CHANNEL_PATH, `$1/channel/${REDACTED}`)
     .replace(URL_PATTERN, safeUrl);
 }
 

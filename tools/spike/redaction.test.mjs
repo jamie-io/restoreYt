@@ -63,3 +63,17 @@ test('redacts credentials embedded in text and private URL path segments', () =>
     accountUrl: 'https://example.test/accounts/[REDACTED]/token/[REDACTED]',
   });
 });
+
+test('redacts channel identifiers in fields, assignments, and channel paths', () => {
+  const result = redact({
+    channelId: 'UCAbcdefghijklmnopqrstuv',
+    diagnostic: 'channelId=UCAbcdefghijklmnopqrstuv at /channel/UCAbcdefghijklmnopqrstuv',
+    channelUrl: 'https://www.youtube.com/channel/UCAbcdefghijklmnopqrstuv/videos',
+  });
+
+  assert.deepEqual(result, {
+    channelId: '[REDACTED]',
+    diagnostic: 'channelId=[REDACTED] at /channel/[REDACTED]',
+    channelUrl: 'https://www.youtube.com/channel/[REDACTED]/videos',
+  });
+});
