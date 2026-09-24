@@ -1,6 +1,6 @@
 # Phase 0 evidence report
 
-Run status: **BLOCKED**. Generated: 2026-09-24T15:32:49.180Z.
+Run status: **BLOCKED**. Generated: 2026-09-24T16:42:39.648Z.
 
 Blocker: Launcher status reported running=false; live probing stopped without retry or browser launch.
 
@@ -22,4 +22,4 @@ Session variants: logged-out NOT OBSERVED; logged-in NOT OBSERVED.
 
 Fixture contains statuses, counts, safe field names, asset variants, language codes, and booleans only. It contains no HAR, cookies, tokens, visitor data, account IDs, video IDs, titles, or raw request URLs.
 
-Run `node tools/spike/run.mjs` with the persistent Chromium session available. Set `SPIKE_VIDEO_MATRIX` to JSON arrays for `title`, `thumbnail`, `audio`, `chapters`, and `channelBranding`; script reuses one context and one page. Use `--offline` to write a blocked report without connecting.
+Run `SPIKE_SESSION_VARIANT=logged-out SPIKE_VIDEO_MATRIX=<exact-count JSON> node tools/spike/run.mjs` with the persistent Chromium session available. Set `SPIKE_VIDEO_MATRIX` to exact arrays for `title` (5), `thumbnail` (2), `audio` (2), `chapters` (2), and `channelBranding` (2); script applies German `PREF`, reuses one context and one page, and never infers login state. Use `--offline` to write a blocked report without connecting.

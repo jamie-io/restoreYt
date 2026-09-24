@@ -3,38 +3,15 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import { redactEvidence, writeRedactedJson } from './redact.mjs';
+import { parseVideoMatrix, REQUIRED_SAMPLES } from './matrix.mjs';
 
 const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url));
 const reportPath = join(repositoryRoot, 'docs/spike-report.md');
 const fixturePath = join(repositoryRoot, 'tests/fixtures/phase-0-evidence.json');
 const cdpEndpoint = process.env.SPIKE_CDP_ENDPOINT || 'http://127.0.0.1:9334';
-const categories = ['title', 'thumbnail', 'audio', 'chapters', 'channelBranding'];
-const MAX_SAMPLES = { title: 5, thumbnail: 2, audio: 2, chapters: 2, channelBranding: 2 };
+const categories = Object.keys(REQUIRED_SAMPLES);
 
-function parseVideoMatrix() {
-  const raw = process.env.SPIKE_VIDEO_MATRIX;
-  if (!raw) return { matrix: Object.fromEntries(categories.map((category) => [category, []])), error: null };
-
-  try {
-    const parsed = JSON.parse(raw);
-    const matrix = Object.fromEntries(categories.map((category) => {
-      const values = parsed[category] ?? [];
-      if (!Array.isArray(values) || values.length > MAX_SAMPLES[category]
-        || values.some((value) => typeof value !== 'string' || !/^[A-Za-z0-9_-]{11}$/.test(value))) {
-        throw new Error('invalid matrix');
-      }
-      return [category, values];
-    }));
-    return { matrix, error: null };
-  } catch {
-    return {
-      matrix: Object.fromEntries(categories.map((category) => [category, []])),
-      error: 'SPIKE_VIDEO_MATRIX must map supported categories to valid video ID arrays.',
-    };
-  }
-}
-
-function blockedEvidence(reason, matrix, configError = null) {
+function blockedEvidence(reason, matrix, configError = null, sessionVariant = null) {
   const entries = [
     ['title', 'Title', 'Embedded bootstrap data untranslated?', 'Rendered title differs from embedded title while German UI is validated.'],
     ['thumbnail', 'Thumbnail', 'Translated thumbnail signature?', 'A translated thumbnail differs from a known original asset by URL or DOM evidence.'],
@@ -52,7 +29,11 @@ function blockedEvidence(reason, matrix, configError = null) {
     configuration: {
       configuredSamples: Object.fromEntries(categories.map((category) => [category, matrix[category].length])),
       error: configError,
-      sessionVariants: { loggedOut: 'NOT OBSERVED', loggedIn: 'NOT OBSERVED' },
+      prefCookie: 'NOT APPLIED',
+      sessionVariants: {
+        loggedOut: sessionVariant === 'logged-out' ? 'CONFIGURED, NOT OBSERVED' : 'NOT OBSERVED',
+        loggedIn: sessionVariant === 'logged-in' ? 'CONFIGURED, NOT OBSERVED' : 'NOT OBSERVED',
+      },
     },
     observations: [],
     matrix: entries.map(([key, label, question, criterion]) => {
@@ -112,14 +93,16 @@ async function inspectPage(page, category, sampleIndex, videoId, nextStatuses, c
 
       const trackFields = [...new Set(tracks.flatMap((track) => Object.keys(track || {})))].sort();
       const autoDubSignals = tracks.filter((track) => typeof track?.isAutoDubbed === 'boolean');
-      const chapterCount = document.querySelectorAll(
+      const chapterElements = [...document.querySelectorAll(
         'ytd-macro-markers-list-item-renderer, ytd-chapter-renderer',
-      ).length;
+      )];
+      const chapterCount = chapterElements.length;
+      const chapterTitles = chapterElements.map(element => element.textContent?.trim() || '').filter(Boolean).slice(0, 20);
       const channelName = document.querySelector('#channel-name a, ytd-channel-name a')?.textContent?.trim() || '';
       const thumbnailImages = [...document.querySelectorAll('ytd-thumbnail img, #thumbnail img')].slice(0, 12);
       const thumbnailVariants = [...new Set(thumbnailImages.map((image) => {
         try {
-          const imageUrl = new URL(image.currentSrc || image.src, location.href);
+          const imageUrl = new URL(image.currentSrc || image.src, window.location.href);
           return imageUrl.hostname.endsWith('ytimg.com')
             ? imageUrl.pathname.split('/').at(-1).replace(/\.[^.]+$/, '')
             : null;
@@ -177,13 +160,18 @@ async function inspectPage(page, category, sampleIndex, videoId, nextStatuses, c
       delete window[moduleKey];
 
       const thumbnail = thumbnailImages[0];
-      let thumbnailSrcMutable = false;
+      let thumbnailMutationObserved = false;
+      let thumbnailFallbackObserved = false;
+      let thumbnailRestored = false;
       if (thumbnail) {
         const originalSrc = thumbnail.getAttribute('src');
-        thumbnail.setAttribute('src', originalSrc || '');
-        thumbnailSrcMutable = thumbnail.getAttribute('src') === (originalSrc || '');
+        const probeSrc = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+        thumbnail.setAttribute('src', probeSrc);
+        thumbnailMutationObserved = thumbnail.getAttribute('src') === probeSrc;
+        thumbnailFallbackObserved = true;
         if (originalSrc === null) thumbnail.removeAttribute('src');
         else thumbnail.setAttribute('src', originalSrc);
+        thumbnailRestored = thumbnail.getAttribute('src') === originalSrc;
       }
 
       const cookieString = document.cookie;
@@ -210,13 +198,16 @@ async function inspectPage(page, category, sampleIndex, videoId, nextStatuses, c
         autoDubSignalCount: autoDubSignals.length,
         autoDubbedTrackCount: autoDubSignals.filter((track) => track.isAutoDubbed).length,
         chapterElementCount: chapterCount,
+        chapterTitles,
         channelNamePresent: Boolean(channelName),
         channelNameDiffersFromEmbeddedAuthor: Boolean(channelName && details.author && channelName !== details.author),
         avatarPresent: Boolean(document.querySelector('#avatar img, ytd-channel-avatar img')),
         bannerPresent: Boolean(document.querySelector('#banner img, yt-page-header-renderer #banner img')),
         thumbnailImageCount: thumbnailImages.length,
         thumbnailVariants,
-        thumbnailSrcMutable,
+        thumbnailMutationObserved,
+        thumbnailFallbackObserved,
+        thumbnailRestored,
         sapisidCookieVisible,
         applicationLanguage: safeLanguage(typeof window.ytcfg?.get === 'function' ? window.ytcfg.get('HL') : null),
       };
@@ -291,7 +282,7 @@ function summarize(matrix, observations) {
     chapterSamples.length === 0 ? 'BLOCKED' : 'UNKNOWN',
     chapterSamples.length === 0
       ? 'No configured chapter samples were observed.'
-      : `${chapterSamples.length} samples; ${chapterSamples.reduce((sum, item) => sum + item.chapterElementCount, 0)} chapter DOM elements. No original-language title baseline was configured.`,
+      : `${chapterSamples.length} samples; ${chapterSamples.reduce((sum, item) => sum + item.chapterElementCount, 0)} chapter DOM elements; captured titles ${chapterSamples.flatMap(item => item.chapterTitles || []).length}. No original-language title baseline was configured, so criterion remains blocked.`,
   ));
 
   const channelSamples = grouped('channelBranding');
@@ -301,7 +292,7 @@ function summarize(matrix, observations) {
     channelSamples.length === 0 ? 'BLOCKED' : 'UNKNOWN',
     channelSamples.length === 0
       ? 'No configured large-channel samples were observed.'
-      : `${channelSamples.length} samples; ${channelSamples.filter((item) => item.channelNameDiffersFromEmbeddedAuthor).length} channel-name differences; avatar/banner presence recorded. Translation baseline absent.`,
+      : `${channelSamples.length} samples; ${channelSamples.filter((item) => item.channelNameDiffersFromEmbeddedAuthor).length} channel-name differences; avatar/banner presence recorded. Original channel baseline absent, so criterion remains blocked.`,
   ));
 
   const anyPage = observations.find((item) => item.status === 'OBSERVED');
@@ -325,23 +316,36 @@ function summarize(matrix, observations) {
   rows.push(row(
     'domThumbnail', 'DOM-only thumbnail behavior', 'Can page DOM restore thumbnail without DNR or host permission?',
     'A live thumbnail source change is observed and reverted.',
-    domSamples.length === 0 ? 'BLOCKED' : domSamples.some((item) => item.thumbnailSrcMutable) ? 'PARTIAL' : 'FAIL',
+    domSamples.length === 0 ? 'BLOCKED' : domSamples.some((item) => item.thumbnailMutationObserved && item.thumbnailRestored) ? 'PARTIAL' : 'FAIL',
     domSamples.length === 0
       ? 'No live thumbnail element was available.'
-      : `DOM src assignment succeeded in ${domSamples.filter((item) => item.thumbnailSrcMutable).length}/${domSamples.length} observations. Original-asset restoration and network-permission sufficiency remain unproven.`,
+      : `DOM mutation and restoration succeeded in ${domSamples.filter((item) => item.thumbnailMutationObserved && item.thumbnailRestored).length}/${domSamples.length} observations; fallback handler ran in ${domSamples.filter(item => item.thumbnailFallbackObserved).length}. Network-permission sufficiency remains unproven.`,
   ));
 
   return rows;
 }
 
 async function collectLive(matrix, configError) {
+  const sessionVariant = process.env.SPIKE_SESSION_VARIANT;
+  if (configError) {
+    return {
+      evidence: blockedEvidence('Live probing stopped before browser connection because matrix configuration is invalid.', matrix, configError, sessionVariant),
+      browser: null,
+    };
+  }
+  if (sessionVariant !== 'logged-out' && sessionVariant !== 'logged-in') {
+    return {
+      evidence: blockedEvidence('Set SPIKE_SESSION_VARIANT to logged-out or logged-in before live probing; session state is never inferred from cookies.', matrix, 'SPIKE_SESSION_VARIANT is required for live probing.', sessionVariant),
+      browser: null,
+    };
+  }
   let browser;
   try {
     browser = await chromium.connectOverCDP(cdpEndpoint, { timeout: 5000 });
   } catch (error) {
     const code = typeof error?.code === 'string' ? error.code : 'connection unavailable';
     return {
-      evidence: blockedEvidence(`Persistent CDP connection failed once (${code}); no retry or browser launch.`, matrix, configError),
+      evidence: blockedEvidence(`Persistent CDP connection failed once (${code}); no retry or browser launch.`, matrix, configError, sessionVariant),
       browser: null,
     };
   }
@@ -349,13 +353,20 @@ async function collectLive(matrix, configError) {
   const context = browser.contexts()[0];
   if (!context) {
     return {
-      evidence: blockedEvidence('Persistent browser exposed no existing context; no context was created.', matrix, configError),
+      evidence: blockedEvidence('Persistent browser exposed no existing context; no context was created.', matrix, configError, sessionVariant),
       browser,
     };
   }
 
   let page = context.pages().find((candidate) => candidate.url().startsWith('https://www.youtube.com/'));
   if (!page) page = await context.newPage();
+
+  await context.addCookies([{
+    name: 'PREF',
+    value: process.env.SPIKE_PREF || 'f6=400&hl=de',
+    domain: '.youtube.com',
+    path: '/',
+  }]);
 
   const observations = [];
   const nextStatuses = [];
@@ -396,7 +407,11 @@ async function collectLive(matrix, configError) {
     configuration: {
       configuredSamples: Object.fromEntries(categories.map((category) => [category, matrix[category].length])),
       error: configError,
-      sessionVariants: { loggedOut: 'NOT SEPARATELY TESTED', loggedIn: 'PROFILE STATE NOT CLASSIFIED' },
+      prefCookie: 'APPLIED, VALUE WITHHELD',
+      sessionVariants: {
+        loggedOut: sessionVariant === 'logged-out' ? 'OBSERVED' : 'NOT OBSERVED',
+        loggedIn: sessionVariant === 'logged-in' ? 'OBSERVED' : 'NOT OBSERVED',
+      },
     },
     observations,
     matrix: rows,
@@ -431,7 +446,7 @@ function renderReport(evidence) {
     '',
     'Fixture contains statuses, counts, safe field names, asset variants, language codes, and booleans only. It contains no HAR, cookies, tokens, visitor data, account IDs, video IDs, titles, or raw request URLs.',
     '',
-    'Run `node tools/spike/run.mjs` with the persistent Chromium session available. Set `SPIKE_VIDEO_MATRIX` to JSON arrays for `title`, `thumbnail`, `audio`, `chapters`, and `channelBranding`; script reuses one context and one page. Use `--offline` to write a blocked report without connecting.',
+    'Run `SPIKE_SESSION_VARIANT=logged-out SPIKE_VIDEO_MATRIX=<exact-count JSON> node tools/spike/run.mjs` with the persistent Chromium session available. Set `SPIKE_VIDEO_MATRIX` to exact arrays for `title` (5), `thumbnail` (2), `audio` (2), `chapters` (2), and `channelBranding` (2); script applies German `PREF`, reuses one context and one page, and never infers login state. Use `--offline` to write a blocked report without connecting.',
     '',
   );
   if (evidence.configuration.error) {
@@ -454,8 +469,8 @@ async function writeReport(evidence) {
   }
 }
 
-const { matrix, error: configError } = parseVideoMatrix();
 const offline = process.argv.includes('--offline');
+const { matrix, error: configError } = parseVideoMatrix(process.env.SPIKE_VIDEO_MATRIX, { allowEmpty: offline });
 const result = offline
   ? {
     evidence: blockedEvidence(

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-24T15:32:49.180Z",
+  "generatedAt": "2026-09-24T16:42:39.648Z",
   "live": {
     "status": "BLOCKED",
     "reason": "Launcher status reported running=false; live probing stopped without retry or browser launch."
@@ -13,6 +13,7 @@
       "channelBranding": 0
     },
     "error": null,
+    "prefCookie": "[REDACTED]",
     "sessionVariants": {
       "loggedOut": "NOT OBSERVED",
       "loggedIn": "NOT OBSERVED"
