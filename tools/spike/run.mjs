@@ -330,13 +330,11 @@ async function collectLive(matrix, configError) {
   if (configError) {
     return {
       evidence: blockedEvidence('Live probing stopped before browser connection because matrix configuration is invalid.', matrix, configError, sessionVariant),
-      browser: null,
     };
   }
   if (sessionVariant !== 'logged-out' && sessionVariant !== 'logged-in') {
     return {
       evidence: blockedEvidence('Set SPIKE_SESSION_VARIANT to logged-out or logged-in before live probing; session state is never inferred from cookies.', matrix, 'SPIKE_SESSION_VARIANT is required for live probing.', sessionVariant),
-      browser: null,
     };
   }
   let browser;
@@ -346,7 +344,6 @@ async function collectLive(matrix, configError) {
     const code = typeof error?.code === 'string' ? error.code : 'connection unavailable';
     return {
       evidence: blockedEvidence(`Persistent CDP connection failed once (${code}); no retry or browser launch.`, matrix, configError, sessionVariant),
-      browser: null,
     };
   }
 
@@ -354,7 +351,6 @@ async function collectLive(matrix, configError) {
   if (!context) {
     return {
       evidence: blockedEvidence('Persistent browser exposed no existing context; no context was created.', matrix, configError, sessionVariant),
-      browser,
     };
   }
 
@@ -416,8 +412,7 @@ async function collectLive(matrix, configError) {
     observations,
     matrix: rows,
   };
-  await browser.close();
-  return { evidence, browser };
+  return { evidence };
 }
 
 function renderReport(evidence) {
@@ -480,14 +475,8 @@ const result = offline
       matrix,
       configError,
     ),
-    browser: null,
   }
   : await collectLive(matrix, configError);
 
-try {
-  await writeReport(result.evidence);
-  process.stdout.write(`Live evidence: ${result.evidence.live.status}. Report and sanitized fixture written.\n`);
-} finally {
-  // Disconnect Playwright only after all evidence is written; leave browser, context, and page open.
-  await result.browser?.close();
-}
+await writeReport(result.evidence);
+process.stdout.write(`Live evidence: ${result.evidence.live.status}. Report and sanitized fixture written.\n`);
