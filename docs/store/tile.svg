@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="280" viewBox="0 0 440 280">
+  <rect width="440" height="280" rx="22" fill="#172235"/>
+  <circle cx="76" cy="76" r="32" fill="#3767e8"/><path d="M61 76h30M76 61v30" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
+  <text x="126" y="86" fill="#fff" font-family="Arial, sans-serif" font-size="34" font-weight="700">restoreyt</text>
+  <text x="42" y="158" fill="#d9e5f2" font-family="Arial, sans-serif" font-size="20">Original titles.</text>
+  <text x="42" y="190" fill="#d9e5f2" font-family="Arial, sans-serif" font-size="20">Descriptions. Thumbnails.</text>
+  <rect x="42" y="222" width="176" height="4" rx="2" fill="#4f8cff"/>
+</svg>

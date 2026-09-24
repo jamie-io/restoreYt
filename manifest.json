@@ -3,7 +3,7 @@
   "name": "restoreyt",
   "author": "Jamie",
   "version": "1.0.0",
-  "description": "Restore original YouTube titles, thumbnails, descriptions, and audio when auto-translation appears",
+  "description": "Restore original YouTube titles, thumbnails, and descriptions when auto-translation appears",
   "permissions": ["storage"],
   "host_permissions": [
     "*://*.youtube.com/*",

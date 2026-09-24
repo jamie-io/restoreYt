@@ -40,6 +40,20 @@ test('redacts sensitive fields and preserves safe presence metadata', () => {
   });
 });
 
+test('preserves non-sensitive PREF application status without exposing its value', () => {
+  const result = redact({
+    prefCookie: 'NOT APPLIED',
+    appliedPrefCookie: 'APPLIED, VALUE WITHHELD',
+    rawPrefCookie: 'f6=400&hl=de',
+  });
+
+  assert.deepEqual(result, {
+    prefCookie: 'NOT APPLIED',
+    appliedPrefCookie: 'APPLIED, VALUE WITHHELD',
+    rawPrefCookie: '[REDACTED]',
+  });
+});
+
 test('removes URL queries and redacts YouTube video identifiers', () => {
   const result = redact({
     pageUrl: 'https://www.youtube.com/watch?v=synthetic-video-id&token=synthetic-token',

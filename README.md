@@ -7,7 +7,7 @@ Current runtime restores titles, descriptions, and thumbnails. Audio and channel
 ## Features
 
 - Original titles on watch pages, Shorts, search, recommendations, and embeds.
-- Original descriptions with text-only DOM writes.
+- Original descriptions with safe text, line-break, and HTTP(S) link DOM writes.
 - Thumbnail fallback chain: max resolution → lower-quality original → original element state.
 - Audio and channel-branding code remains evidence-gated; no unsupported claims or writes ship by default.
 - Channel whitelist stored in `storage.local`.
@@ -34,7 +34,7 @@ The archive is `.dist/restoreyt.zip`.
 ## Commands
 
 ```bash
-npm run verify       # lint, strict typecheck, unit tests, build
+npm run verify       # version, lint, strict typecheck, unit/spike tests, build
 npm run test:e2e     # build + hermetic Chromium extension tests
 npm run package     # build + .dist/restoreyt.zip
 node tools/spike/run.mjs --offline --browser-unavailable

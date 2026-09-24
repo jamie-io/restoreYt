@@ -8,6 +8,7 @@ const BEARER_TOKEN = /\bBearer\s+[^\s,;]+/gi;
 const CHANNEL_PATH = /(^|[\s"'(])\/channel\/[^/?#\s"'<>),.;]+/gi;
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 const PRIVATE_PATH_SEGMENT = /^(?:vi|vi_lc|shorts|embed|channel|accounts?|users?|token|access_token|session|visitor|auth|api_key)$/i;
+const SAFE_PREF_STATUS = new Set(['NOT APPLIED', 'APPLIED, VALUE WITHHELD']);
 
 function safeUrl(value) {
   try {
@@ -38,6 +39,7 @@ function redactString(value) {
 }
 
 function redactValue(value, key = '') {
+  if (key.toLowerCase().endsWith('prefcookie') && typeof value === 'string' && SAFE_PREF_STATUS.has(value)) return value;
   if (SENSITIVE_FIELD.test(key)) {
     const isSafePresence = typeof value === 'boolean' && PRESENCE_FIELD.test(key);
     if (!isSafePresence) return REDACTED;

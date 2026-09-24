@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-24T16:42:39.648Z",
+  "generatedAt": "2026-09-24T19:01:01.245Z",
   "live": {
     "status": "BLOCKED",
     "reason": "Launcher status reported running=false; live probing stopped without retry or browser launch."
@@ -13,7 +13,9 @@
       "channelBranding": 0
     },
     "error": null,
-    "prefCookie": "[REDACTED]",
+    "prefCookie": "NOT APPLIED",
+    "sessionVariantRequested": null,
+    "sessionVariantValidation": "NOT CHECKED",
     "sessionVariants": {
       "loggedOut": "NOT OBSERVED",
       "loggedIn": "NOT OBSERVED"
@@ -83,7 +85,7 @@
       "question": "Can page DOM restore thumbnail without DNR or host permission?",
       "criterion": "A live thumbnail source change is observed and reverted.",
       "status": "BLOCKED",
-      "evidence": "Launcher status reported running=false; live probing stopped without retry or browser launch. No live thumbnail element or known original asset; DOM behavior was not tested."
+      "evidence": "Launcher status reported running=false; live probing stopped without retry or browser launch. No live thumbnail element or known original asset; DOM behavior and error fallback were not tested."
     }
   ]
 }
