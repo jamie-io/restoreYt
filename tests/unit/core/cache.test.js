@@ -52,4 +52,13 @@ describe('LRU cache', () => {
     expect(cache.get('live')).toBe('keep');
     expect(cache.get('new')).toBe('value');
   });
+
+  it('requires positive finite positive and negative TTL values', () => {
+    const createLruCache = api('createLruCache');
+
+    expect(() => createLruCache({ ttlMs: 0 })).toThrow(RangeError);
+    expect(() => createLruCache({ negativeTtlMs: 0 })).toThrow(RangeError);
+    expect(() => createLruCache({ ttlMs: Number.POSITIVE_INFINITY })).toThrow(RangeError);
+    expect(() => createLruCache({ negativeTtlMs: Number.NaN })).toThrow(RangeError);
+  });
 });

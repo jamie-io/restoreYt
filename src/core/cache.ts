@@ -24,6 +24,10 @@ export function createLruCache<Value>(options: LruCacheOptions = {}): LruCache<V
   const negativeTtlMs = options.negativeTtlMs ?? 15_000;
   const now = options.now ?? Date.now;
   if (!Number.isInteger(capacity) || capacity < 1) throw new RangeError('capacity must be a positive integer');
+  if (!Number.isFinite(ttlMs) || ttlMs <= 0) throw new RangeError('ttlMs must be a finite positive number');
+  if (!Number.isFinite(negativeTtlMs) || negativeTtlMs <= 0) {
+    throw new RangeError('negativeTtlMs must be a finite positive number');
+  }
 
   const entries = new Map<string, CacheEntry<Value>>();
   const removeExpiredEntries = (currentTime: number): void => {
