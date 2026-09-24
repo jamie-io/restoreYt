@@ -318,7 +318,7 @@ export function summarize(matrix, observations) {
   });
   const titleStatus = validTitleSamples.length < REQUIRED_SAMPLES.title
     ? 'BLOCKED'
-    : validTitleSamples.some((item) => item.renderedTitleDiffersFromEmbedded) ? 'PASS' : 'FAIL';
+    : validTitleSamples.every((item) => item.renderedTitleDiffersFromEmbedded) ? 'PASS' : 'FAIL';
   rows.push(row(
     'title', 'Title', 'Embedded bootstrap data untranslated?',
     'Rendered title differs from embedded title while German UI is validated.',

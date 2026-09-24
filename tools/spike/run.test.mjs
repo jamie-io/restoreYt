@@ -106,6 +106,20 @@ test('all five validated title comparisons can produce a title result', () => {
   assert.equal(rows.find(row => row.key === 'title').status, 'PASS');
 });
 
+test('title status fails when any validated sample does not differ', () => {
+  const observations = [
+    titleSample(),
+    titleSample(),
+    titleSample(),
+    titleSample(),
+    titleSample({ differs: false }),
+  ];
+
+  const rows = summarize(emptyMatrix, observations);
+
+  assert.equal(rows.find(row => row.key === 'title').status, 'FAIL');
+});
+
 test('PREF application does not validate rendered UI language', async () => {
   const result = await inspectPage(fakePage(pageData({ uiLanguage: 'en', applicationLanguage: 'de' })), 'title', 1, 'abcdefghijk', [], {
     consoleErrors: 0,

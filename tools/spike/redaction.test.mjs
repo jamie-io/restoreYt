@@ -44,11 +44,15 @@ test('removes URL queries and redacts YouTube video identifiers', () => {
   const result = redact({
     pageUrl: 'https://www.youtube.com/watch?v=synthetic-video-id&token=synthetic-token',
     thumbnailUrl: 'https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg?x=synthetic',
+    legacyThumbnailUrl: 'https://i.ytimg.com/vi_lc/abcdefghijk/hqdefault.jpg',
+    videoId: 'abcdefghijk',
   });
 
   assert.deepEqual(result, {
     pageUrl: 'https://www.youtube.com/watch',
     thumbnailUrl: 'https://i.ytimg.com/vi/[REDACTED]/hqdefault.jpg',
+    legacyThumbnailUrl: 'https://i.ytimg.com/vi_lc/[REDACTED]/hqdefault.jpg',
+    videoId: '[REDACTED]',
   });
 });
 
