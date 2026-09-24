@@ -2,14 +2,14 @@
 
 restoreyt restores creator-authored YouTube metadata when localized or auto-translated presentation replaces it.
 
-Current runtime restores titles, descriptions, thumbnails, and channel titles. Audio changes only when player state exposes an explicit `isAutoDubbed: false` track. Chapters, avatars, and banners are not shipped: Phase 0 evidence is blocked until a persistent browser session and curated sample matrix are available. See [docs/spike-report.md](docs/spike-report.md).
+Current runtime restores titles, descriptions, and thumbnails. Audio and channel-branding flows stay disabled until Phase 0 evidence proves their signals. Chapters, avatars, and banners are not shipped. See [docs/spike-report.md](docs/spike-report.md).
 
 ## Features
 
 - Original titles on watch pages, Shorts, search, recommendations, and embeds.
 - Original descriptions with text-only DOM writes.
 - Thumbnail fallback chain: max resolution → lower-quality original → original element state.
-- Conservative original-audio selection when YouTube exposes an explicit auto-dub signal.
+- Audio and channel-branding code remains evidence-gated; no unsupported claims or writes ship by default.
 - Channel whitelist stored in `storage.local`.
 - Popup and options page with quota-error feedback.
 - No telemetry, third-party requests, OAuth, or content downloads.
@@ -51,7 +51,7 @@ YouTube document
        └─ build/main.js       MAIN-world feature runtime
             ├─ src/platform/  ytcfg, InnerTube shapes, selectors, player accessors
             ├─ src/core/       settings, LRU, queue, timeout, navigation, diagnostics
-            └─ src/features/   title, description, thumbnail, audio, channel flows
+            └─ src/features/   title, description, thumbnail, evidence-gated audio/channel flows
 
 build/background.js          classic background + service worker entry
 src/popup/, src/options/      settings surfaces
