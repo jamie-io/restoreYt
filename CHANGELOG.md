@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-31
+
+- Rewrote restoreyt as 2.0.0; runs on every YouTube page, including after in-app navigation
+- Restored original titles everywhere, including A/B test titles
+- Restored original descriptions with working links and timestamps
+- Redirected localized and test thumbnails to the originals
+- Switched dubbed audio to the original track and turned off auto-enabled subtitles
+- Hid AI video summaries
+- Restored titles in session-restored miniplayer, end-screen cards and autoplay overlay
+- Split Chrome and Firefox manifests so Chrome no longer warns about background.scripts
+- Redesigned popup with per-page change log, new settings page and new icon
+- Replaced evidence-gate and spike tooling with unit, browser and live YouTube tests
+
 ## Unreleased - 2026-09-24
 
 ### Changed

@@ -2,38 +2,41 @@
 
 ## Setup
 
-Requirements: Node.js 20 or 22, Git, and Chromium for E2E tests.
+Requirements: Node.js 20 or newer, Git, and Chromium for browser tests (`npx playwright install chromium`).
 
 ```bash
 npm ci
-npm run verify
-npm run test:e2e
+npm run verify     # version check, lint, strict typecheck, unit tests, build
+npm run test:e2e   # built extension in Chromium against a local fake YouTube, no network
 ```
 
-E2E runs against a hermetic mocked YouTube page. It does not contact live YouTube.
+## Where things live
 
-## Architecture
+- `src/content/surfaces.ts`: every place YouTube renders a video title. Most YouTube markup changes are fixed here.
+- `src/content/`: isolated content script. Title engine, title lookups and cache, description restore, tab title, page report.
+- `src/page/`: page-world script. Player access for original metadata, audio tracks and subtitles; player-endpoint fallback.
+- `src/shared/`: settings schema, message contracts, YouTube URL and thumbnail helpers.
+- `src/background.ts`: thumbnail ruleset switch, toolbar badge, cache pruning, lifetime counters.
+- `src/popup/`, `src/options/`, `src/ui/`: extension pages and their shared copy, styles and helpers.
+- `rules/thumbnails.json`: redirect rules, kept in sync with `matchSwappedThumbnail` by a unit test.
+- `docs/adr/`: why things are built the way they are.
 
-- `src/platform/`: runtime `ytcfg`, InnerTube request/response contracts, selectors, thumbnail builders, player accessors.
-- `src/core/`: strict settings schema, in-memory cache, request queue, timeout, navigation abort, diagnostics, circuit breaker.
-- `src/content/bootstrap.ts`: CSP-safe JSON settings block and sequential classic MAIN-world injection.
-- `src/features/`: title, description, thumbnail, audio, and channel restoration flows.
-- `src/background.ts`: classic background/service-worker runtime, settings fan-out, badge, diagnostics state.
-- `src/popup/` and `src/options/`: local settings surfaces.
-- `tools/spike/`: evidence probe and redaction utilities. Live probe uses one existing CDP session only.
+## When YouTube changes
 
-Keep YouTube-specific assumptions in `src/platform/`. Keep pure logic testable without browser globals. Add focused tests before implementation for behavior changes, then run the full `npm run verify` gate.
+1. Run `npm run test:live`. It loads the extension in a fresh, logged-out Chromium profile with a German interface and reports what is still translated.
+2. Capture the new markup (DevTools or a short Playwright script) and update `src/content/surfaces.ts`, `src/page/player.ts` or the rules.
+3. Add the new shape to the fixtures in `tests/unit/title-engine.test.ts` or `tests/e2e/helpers.js`.
 
 ## Pull requests
 
-1. Create focused branch: `feat/<name>`, `fix/<name>`, `docs/<name>`, or `test/<name>`.
+1. Branch per change: `feat/<name>`, `fix/<name>`, `docs/<name>`.
 2. Use Conventional Commits.
-3. Add or update tests and documentation for changed behavior.
-4. Run `npm run verify`, `npm run test:e2e`, and `npm run package` when relevant.
-5. Never include cookies, tokens, visitor data, account IDs, raw private URLs, or live fixture payloads.
+3. Add or update tests and docs for changed behavior.
+4. Run `npm run verify` and `npm run test:e2e`; run `npm run test:live` when touching YouTube-facing code.
+5. Never commit cookies, tokens, visitor data, account IDs or captured personal pages.
 
-## Scope rules
+## Scope
 
-Do not add third-party telemetry, OAuth, content download, subtitle editing, regional bypasses, or speculative feature toggles. Chapters, avatars, and banners require passing evidence and fixtures before shipping.
+restoreyt shows what creators uploaded. It does not download content, block ads, bypass regional restrictions, add telemetry or talk to servers other than YouTube's.
 
 Read [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before participating.

@@ -1,10 +1,11 @@
 # Reviewer reproduction
 
-1. Run `npm ci && npm run package`.
-2. Load `.dist/restoreyt.zip` in a clean Chromium or Firefox profile.
-3. Open the extension popup and toggle title restoration.
-4. Open options, add and remove a channel ID, and verify it is rendered as text.
-5. Run `npm run test:e2e` for the blocking hermetic mock flow.
-6. For live validation, use the separate Phase 0 matrix only with a disposable profile and sanitized output.
+YouTube translates titles and switches to dubbed audio when the interface language differs from the video's language.
 
-Automated blocking coverage targets Chromium. Firefox clean-profile installation and live YouTube canary validation remain manual follow-up checks; this package makes no passing claim for either.
+1. Install restoreyt.
+2. On YouTube, open the account menu and set **Language** to **Deutsch** (or any language other than English). No account is needed.
+3. Search for `mrbeast`. Without restoreyt the titles appear in German; with restoreyt they appear in English, and the popup lists each change with the German version struck through.
+4. Open any of those videos. The title, browser tab title and description are English, and the audio track (gear menu > Audio track) is "English (original)" instead of the German dub.
+5. Switch **Titles** off in the popup: the German titles return immediately. Switch it on again: the English titles return.
+
+Automated checks: `npm run verify` and `npm run test:e2e` (local fake YouTube, no network).

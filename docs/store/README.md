@@ -1,7 +1,6 @@
 # Store assets
 
-- `screenshot-popup.png`: 1280×800 popup and restored-page illustration.
-- `screenshot-options.png`: 1280×800 options and whitelist illustration.
-- `tile.png`: 440×280 store tile.
+- `popup-light.png`, `popup-dark.png`: the popup after visiting a YouTube page with a German interface.
+- `options-light.png`, `options-dark.png`: the settings page.
 
-Illustrations use local product UI only. No account data, cookies, live video IDs, or YouTube captures are included.
+Regenerate with `npm run screenshots` (uses live YouTube in a fresh, logged-out profile) or `node tests/live/screenshots.mjs --fixture` (local fake YouTube with invented titles, no network).

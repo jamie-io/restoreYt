@@ -1,25 +1,31 @@
 # restoreyt Privacy Policy
 
-Last updated: 2026-09-24
+Last updated: 2026-10-31
 
-restoreyt runs locally in your browser. It does not operate a server, collect telemetry, sell data, or send browsing history to third parties.
+restoreyt runs entirely in your browser. It has no server, no analytics and no telemetry, and it does not sell or share data.
 
-## Data used
+## What it stores on your device
 
-- Feature settings and channel whitelist are stored in browser extension storage.
-- YouTube page configuration and InnerTube responses are read only to restore visible metadata.
-- Responses are kept in an in-memory cache and disappear when the extension context ends.
+- **Settings** (which features are on) in the browser's extension storage. If browser sync is on, the browser syncs them between your devices.
+- **Original titles** it looked up, with the text YouTube showed at the time and a timestamp, in local extension storage. Entries are removed after 14 days at the latest. You can clear them on the settings page.
+- **Counters** of how many titles, thumbnails, descriptions, audio tracks and subtitle tracks were restored, in local extension storage. You can reset them on the settings page.
 
-restoreyt does not read or persist cookie values, tokens, account identifiers, video titles in diagnostics, or raw request payloads.
+It does not store your watch history, account details, cookies or tokens.
 
 ## Network requests
 
-Requests go only to YouTube origins required by the current page. restoreyt does not use OAuth, an external analytics service, a remote configuration service, or a user-supplied API key.
+All requests go to YouTube:
 
-## Choices and deletion
+- `https://www.youtube.com/oembed` to look up a video's original title. These requests are sent without cookies.
+- `https://www.youtube.com/youtubei/v1/player` for videos the oEmbed endpoint refuses. The request is made from the YouTube page with that page's normal YouTube context, like the requests YouTube itself makes.
+- `https://i.ytimg.com` for original thumbnails, which replace the localized ones YouTube would have loaded.
 
-Disable individual features or the whole extension from popup/options. Remove stored settings by removing the extension from browser extension settings.
+No request goes anywhere else.
+
+## Your choices
+
+Switch off any feature, or restoreyt as a whole, from the popup or the settings page. Clear cached titles and reset counters on the settings page. Removing the extension deletes everything it stored.
 
 ## Contact
 
-Report privacy issues through the repository's private security contact described in `SECURITY.md`. Do not attach cookies, tokens, or account data.
+Report privacy issues privately as described in [SECURITY.md](SECURITY.md). Do not attach cookies, tokens or account data.
