@@ -1,0 +1,22 @@
+/* Injected into YouTube pages. Keep selectors narrow: this stylesheet must never
+   change anything except what restoreyt is responsible for. */
+
+html[data-restoreyt-hide-ai] ytd-expandable-metadata-renderer[has-video-summary],
+html[data-restoreyt-hide-ai] #video-summary:has(> ytd-expandable-metadata-renderer[has-video-summary]) {
+  display: none !important;
+}
+
+.restoreyt-description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.restoreyt-description a.restoreyt-link {
+  color: var(--yt-spec-call-to-action, #065fd4);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.restoreyt-description a.restoreyt-link:hover {
+  text-decoration: underline;
+}

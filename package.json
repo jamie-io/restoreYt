@@ -1,31 +1,35 @@
 {
   "name": "restoreyt",
-  "version": "1.0.0",
-  "description": "Restore original YouTube titles, thumbnails, and descriptions",
+  "version": "2.0.0",
+  "description": "See YouTube videos the way they were uploaded: original titles, descriptions, thumbnails and audio",
   "author": "Jamie",
   "license": "MIT",
   "private": false,
+  "type": "module",
   "scripts": {
+    "build": "node ./esbuild.config.mjs",
+    "watch": "node ./esbuild.config.mjs --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npm run build && playwright test",
-    "lint": "eslint src/ tests/ tools/spike/",
+    "test:live": "npm run build && node tests/live/live-check.mjs",
+    "screenshots": "npm run build && node tests/live/screenshots.mjs",
+    "lint": "eslint tests/ scripts/ esbuild.config.mjs",
     "typecheck": "tsc --noEmit",
-    "build": "node ./esbuild.config.mjs",
-    "watch": "node ./esbuild.config.mjs --watch",
-    "package": "npm run build && node scripts/package.mjs",
-    "test:spike": "node --test tools/spike/*.test.mjs",
+    "package": "npm run build -- --minify && node scripts/package.mjs",
     "versioncheck": "node scripts/verify-version.mjs",
-    "verify": "npm run versioncheck && npm run lint && npm run typecheck && npm test && npm run test:spike && npm run build"
+    "verify": "npm run versioncheck && npm run lint && npm run typecheck && npm test && npm run build"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",
+    "@types/chrome": "0.1.24",
     "esbuild": "^0.27.7",
     "eslint": "^9.27.0",
+    "happy-dom": "20.0.11",
     "typescript": "^5.9.3",
     "vitest": "^3.2.1"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   }
 }

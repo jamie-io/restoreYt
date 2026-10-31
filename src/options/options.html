@@ -1,303 +1,60 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>restoreyt Settings</title>
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 24px;
-      background: #f5f5f5;
-      color: #333;
-    }
-
-    .header {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 32px;
-    }
-
-    .header img {
-      width: 48px;
-      height: 48px;
-    }
-
-    .header h1 {
-      font-size: 24px;
-      font-weight: 600;
-    }
-
-    .section {
-      background: white;
-      border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 16px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-
-    .section h2 {
-      font-size: 16px;
-      font-weight: 600;
-      margin-bottom: 16px;
-      color: #555;
-    }
-
-    .toggle-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 0;
-      border-bottom: 1px solid #eee;
-    }
-
-    .toggle-row:last-child {
-      border-bottom: none;
-    }
-
-    .toggle-label {
-      font-size: 15px;
-      color: #333;
-    }
-
-    .toggle-desc {
-      font-size: 13px;
-      color: #666;
-      margin-top: 4px;
-    }
-
-    .toggle {
-      position: relative;
-      width: 48px;
-      height: 26px;
-      flex-shrink: 0;
-    }
-
-    .toggle input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: #ccc;
-      border-radius: 26px;
-      transition: background 0.2s;
-    }
-
-    .slider:before {
-      content: '';
-      position: absolute;
-      height: 20px;
-      width: 20px;
-      left: 3px;
-      bottom: 3px;
-      background: white;
-      border-radius: 50%;
-      transition: transform 0.2s;
-    }
-
-    input:checked + .slider {
-      background: #4CAF50;
-    }
-
-    input:checked + .slider:before {
-      transform: translateX(22px);
-    }
-
-    .whitelist-section {
-      margin-top: 16px;
-    }
-
-    .whitelist-input {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-
-    .whitelist-input input {
-      flex: 1;
-      padding: 10px 12px;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      font-size: 14px;
-    }
-
-    .whitelist-input input:focus {
-      outline: none;
-      border-color: #4CAF50;
-    }
-
-    .whitelist-input button {
-      padding: 10px 16px;
-      background: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 14px;
-      cursor: pointer;
-    }
-
-    .whitelist-input button:hover {
-      background: #45a049;
-    }
-
-    .whitelist-list {
-      list-style: none;
-    }
-
-    .whitelist-list li {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 12px;
-      background: #f5f5f5;
-      border-radius: 6px;
-      margin-bottom: 8px;
-    }
-
-    .whitelist-list li span {
-      font-size: 14px;
-    }
-
-    .whitelist-list li button {
-      background: #ff4444;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      padding: 4px 8px;
-      font-size: 12px;
-      cursor: pointer;
-    }
-
-    .whitelist-list li button:hover {
-      background: #cc0000;
-    }
-
-    .footer {
-      text-align: center;
-      padding: 16px 0;
-      color: #888;
-      font-size: 13px;
-    }
-  </style>
+  <title>restoreyt settings</title>
+  <link rel="stylesheet" href="../../build/options.css">
 </head>
 <body>
-  <div class="header">
-    <img src="../../icons/icon128.png" alt="restoreyt">
-    <h1>restoreyt Settings</h1>
+  <div class="page">
+    <header class="intro">
+      <h1 class="wordmark">restoreyt</h1>
+      <p class="lede">Shows YouTube videos the way their creators uploaded them: original titles, descriptions, thumbnails and audio.</p>
+      <label class="master">
+        <span class="switch">
+          <input type="checkbox" id="enabled" role="switch">
+          <span aria-hidden="true"></span>
+        </span>
+        <span id="master-label">Restoring originals on YouTube</span>
+      </label>
+    </header>
+
+    <section class="block" aria-labelledby="restore-heading">
+      <h2 id="restore-heading">What gets restored</h2>
+      <figure class="example">
+        <s class="replaced">Ich habe 100 Tage in der Wildnis überlebt</s>
+        <span class="original">I Survived 100 Days in the Wild</span>
+        <figcaption>YouTube’s translation, struck through, and the creator’s title restoreyt shows instead.</figcaption>
+      </figure>
+      <ul class="features" id="features"></ul>
+    </section>
+
+    <section class="block" aria-labelledby="toolbar-heading">
+      <h2 id="toolbar-heading">Toolbar</h2>
+      <ul class="features" id="toolbar"></ul>
+    </section>
+
+    <section class="block" aria-labelledby="stats-heading">
+      <h2 id="stats-heading">So far</h2>
+      <p class="prose" id="stats">Counting…</p>
+    </section>
+
+    <section class="block" aria-labelledby="data-heading">
+      <h2 id="data-heading">Data on this device</h2>
+      <p class="prose">To find an original title, restoreyt asks YouTube’s public oEmbed endpoint, without cookies. Descriptions, audio tracks and subtitles come from the page itself. Results stay on this device for up to 14 days. No other servers are contacted and nothing is collected.</p>
+      <p class="prose muted" id="cache-status"></p>
+      <div class="row">
+        <button type="button" class="button" id="clear-cache">Clear cached titles</button>
+        <button type="button" class="button" id="reset-stats">Reset statistics</button>
+      </div>
+      <p class="prose muted" id="data-feedback" role="status"></p>
+    </section>
+
+    <footer class="foot">
+      <span id="version"></span>
+    </footer>
   </div>
-
-  <div class="section">
-    <h2>General</h2>
-    <div class="toggle-row">
-      <div>
-        <div class="toggle-label">Enable Extension</div>
-        <div class="toggle-desc">Master toggle for all features</div>
-      </div>
-      <label class="toggle">
-        <input type="checkbox" id="enabled" checked>
-        <span class="slider"></span>
-      </label>
-    </div>
-  </div>
-
-  <div class="section">
-    <h2>Features</h2>
-
-    <div class="toggle-row">
-      <div>
-        <div class="toggle-label">Untranslate Titles</div>
-        <div class="toggle-desc">Restore original video titles</div>
-      </div>
-      <label class="toggle">
-        <input type="checkbox" id="untranslateTitle" checked>
-        <span class="slider"></span>
-      </label>
-    </div>
-
-    <div class="toggle-row">
-      <div>
-        <div class="toggle-label">Untranslate Thumbnails</div>
-        <div class="toggle-desc">Show original creator thumbnails</div>
-      </div>
-      <label class="toggle">
-        <input type="checkbox" id="untranslateThumbnail" checked>
-        <span class="slider"></span>
-      </label>
-    </div>
-
-    <div class="toggle-row">
-      <div>
-        <div class="toggle-label">Untranslate Descriptions</div>
-        <div class="toggle-desc">Restore original video descriptions</div>
-      </div>
-      <label class="toggle">
-        <input type="checkbox" id="untranslateDescription" checked>
-        <span class="slider"></span>
-      </label>
-    </div>
-
-
-    <div class="toggle-row is-locked">
-      <div>
-        <div class="toggle-label">Disable AI Audio</div>
-        <div class="toggle-desc" id="audioEvidenceGate">Evidence-gated: unavailable until runtime opt-in</div>
-      </div>
-      <label class="toggle">
-        <input type="checkbox" id="untranslateAudio" checked disabled aria-describedby="audioEvidenceGate">
-        <span class="slider"></span>
-      </label>
-    </div>
-
-    <div class="toggle-row is-locked">
-      <div>
-        <div class="toggle-label">Untranslate Channel Branding</div>
-        <div class="toggle-desc" id="channelBrandingEvidenceGate">Evidence-gated: unavailable until runtime opt-in</div>
-      </div>
-      <label class="toggle">
-        <input type="checkbox" id="untranslateChannelBranding" checked disabled aria-describedby="channelBrandingEvidenceGate">
-        <span class="slider"></span>
-      </label>
-    </div>
-  </div>
-
-  <div class="section">
-    <h2>Whitelist Channels</h2>
-    <p style="font-size: 14px; color: #666; margin-bottom: 12px;">
-      Channels listed here will keep their translated titles and thumbnails.
-      Enter the @handle or channel ID.
-    </p>
-
-    <div class="whitelist-input">
-      <input type="text" id="channelInput" placeholder="@channelname or channel ID">
-      <button id="addChannel">Add</button>
-    </div>
-
-    <ul class="whitelist-list" id="whitelistList"></ul>
-  </div>
-
-  <div class="footer">
-    restoreyt v1.0.0
-  </div>
-
-  <p id="status" role="status" aria-live="polite"></p>
-
   <script src="../../build/options.js"></script>
 </body>
 </html>

@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "regexSubstitution": "https://i.ytimg.com/vi/\\1/\\2.jpg"
+      }
+    },
+    "condition": {
+      "regexFilter": "^https://i\\.ytimg\\.com/vi_lc/([A-Za-z0-9_-]+)/([a-z0-9]+(?:_live)?)_[A-Za-z-]+\\.(?:jpg|webp).*$",
+      "resourceTypes": [
+        "image"
+      ],
+      "initiatorDomains": [
+        "youtube.com",
+        "youtube-nocookie.com"
+      ]
+    }
+  },
+  {
+    "id": 2,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "regexSubstitution": "https://i.ytimg.com/\\1/\\2/\\3.\\4"
+      }
+    },
+    "condition": {
+      "regexFilter": "^https://i\\.ytimg\\.com/(vi|vi_webp)/([A-Za-z0-9_-]+)/([a-z0-9]+)_custom_[0-9]+\\.(jpg|webp).*$",
+      "resourceTypes": [
+        "image"
+      ],
+      "initiatorDomains": [
+        "youtube.com",
+        "youtube-nocookie.com"
+      ]
+    }
+  }
+]

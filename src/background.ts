@@ -1,190 +1,131 @@
-import { createFeatureCircuitBreaker, type FeatureState } from './core/circuit-breaker.js';
-import { createDiagnosticsBuffer } from './core/diagnostics.js';
-import { createDefaultSettings, normalizeSettings, type Settings } from './core/settings.js';
+/**
+ * Background (service worker in Chromium, event page in Firefox).
+ * - Turns the thumbnail redirect ruleset on/off with the settings.
+ * - Shows the per-tab restore count on the toolbar icon.
+ * - Prunes old title-cache entries and keys from earlier releases.
+ */
 
-export interface BrowserApi {
-  runtime?: {
-    onMessage?: {
-      addListener: (
-        listener: (
-          message: unknown,
-          sender: unknown,
-          sendResponse: (response: Record<string, unknown>) => void,
-        ) => boolean | void,
-      ) => void;
-    };
-    getManifest?: () => { version?: string };
-  };
-  storage?: {
-    local?: {
-      get?: (defaults: Record<string, unknown>, callback?: (values: Record<string, unknown>) => void) => Promise<Record<string, unknown>> | void;
-      set?: (values: Record<string, unknown>, callback?: () => void) => Promise<void> | void;
-    };
-    onChanged?: { addListener: (listener: (changes: Record<string, unknown>, areaName: string) => void) => void };
-  };
-  tabs?: {
-    query?: (queryInfo: Record<string, unknown>) => Promise<Array<{ id?: number }>>;
-    sendMessage?: (tabId: number, message: unknown) => Promise<unknown> | void;
-  };
-  action?: {
-    setBadgeText?: (details: { text: string }) => Promise<void> | void;
-    setBadgeBackgroundColor?: (details: { color: string }) => Promise<void> | void;
-  };
-}
+import { ext, loadSettings } from './shared/ext.js';
+import { MESSAGE, type RuntimeMessage } from './shared/messages.js';
+import { isActive, LEGACY_KEYS, SETTING_KEYS, type Settings } from './shared/settings.js';
+import { isExpired, isStoredTitle, TITLE_KEY_PREFIX } from './content/title-store.js';
+import { LIFETIME_KEY, type LifetimeStats } from './content/report.js';
 
-export interface BackgroundController {
-  start(): void;
-  handleMessage(message: unknown, sender?: unknown): Promise<Record<string, unknown>>;
-  setFeatureState(feature: string, status: 'active' | 'disabled' | 'error'): Promise<void>;
-  getFeatureState(feature: string): FeatureState;
-}
+const THUMBNAIL_RULESET = 'thumbnails';
+const MAX_CACHED_TITLES = 20000;
+const BADGE_COLOR = '#2b2a27';
 
-interface BackgroundOptions {
-  now?: () => number;
-}
-
-const FEATURE_STATE_KEY = 'restoreyt:feature-states';
-
-function resolveBrowserApi(): BrowserApi | undefined {
-  const root = globalThis as typeof globalThis & { browser?: BrowserApi; chrome?: BrowserApi };
-  return root.browser ?? root.chrome;
-}
-
-function messageType(message: unknown): string | null {
-  if (!message || typeof message !== 'object') return null;
-  const type = (message as { type?: unknown }).type;
-  return typeof type === 'string' ? type : null;
-}
-
-function asSettings(value: Record<string, unknown>): Settings {
-  return normalizeSettings(value);
-}
-
-export function createBackgroundController(
-  api: BrowserApi | undefined = resolveBrowserApi(),
-  options: BackgroundOptions = {},
-): BackgroundController {
-  const now = options.now ?? Date.now;
-  const diagnostics = createDiagnosticsBuffer({ capacity: 200, now });
-  const breaker = createFeatureCircuitBreaker({ failureThreshold: 3 });
-  const startedFeatures = new Map<string, 'active' | 'disabled' | 'error'>();
-  let started = false;
-  let startup = Promise.resolve();
-
-  const record = (feature: string, level: 'info' | 'warning' | 'error', message: string): void => {
-    diagnostics.record({ feature, level, message });
-  };
-
-  const setBadgeState = async (status: 'active' | 'disabled' | 'error'): Promise<void> => {
-    const text = status === 'active' ? '' : status === 'error' ? '!' : '–';
-    const color = status === 'error' ? '#d93025' : status === 'disabled' ? '#5f6368' : '#188038';
-    await api?.action?.setBadgeText?.({ text });
-    await api?.action?.setBadgeBackgroundColor?.({ color });
-  };
-
-  const persistFeatureStates = async (): Promise<void> => {
-    const values = Object.fromEntries(startedFeatures.entries());
-    await api?.storage?.local?.set?.({ [FEATURE_STATE_KEY]: values });
-  };
-
-  const restoreFeatureStates = async (): Promise<void> => {
-    const storage = api?.storage?.local;
-    if (!storage?.get) return;
-    const defaults = { [FEATURE_STATE_KEY]: {} };
-    const result = storage.get(defaults);
-    const values = result && typeof result.then === 'function'
-      ? await result
-      : await new Promise<Record<string, unknown>>(resolve => storage.get?.(defaults, resolve));
-    const saved = values[FEATURE_STATE_KEY];
-    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
-
-    for (const [feature, status] of Object.entries(saved)) {
-      if (status === 'active' || status === 'disabled' || status === 'error') {
-        startedFeatures.set(feature, status);
-      }
-    }
-  };
-
-  const fanOutSettings = async (changes: Record<string, unknown>): Promise<void> => {
-    const tabs = await api?.tabs?.query?.({}) ?? [];
-    await Promise.allSettled(
-      tabs.filter((tab): tab is { id: number } => typeof tab.id === 'number')
-        .map(tab => api?.tabs?.sendMessage?.(tab.id, { type: 'restoreyt:settings-changed', changes })),
+async function syncRulesets(settings: Settings): Promise<void> {
+  const want = isActive(settings, 'thumbnails');
+  try {
+    const enabled = await ext.declarativeNetRequest.getEnabledRulesets();
+    if (enabled.includes(THUMBNAIL_RULESET) === want) return;
+    await ext.declarativeNetRequest.updateEnabledRulesets(
+      want ? { enableRulesetIds: [THUMBNAIL_RULESET] } : { disableRulesetIds: [THUMBNAIL_RULESET] },
     );
-  };
+  } catch (error) {
+    console.warn('[restoreyt] could not update thumbnail rules', error);
+  }
+}
 
-  const readStoredSettings = async (): Promise<Record<string, unknown>> => {
-    const defaults = createDefaultSettings() as unknown as Record<string, unknown>;
-    const storage = api?.storage?.local;
-    if (!storage?.get) return defaults;
-    const result = storage.get(defaults);
-    return result && typeof result.then === 'function'
-      ? result
-      : new Promise(resolve => storage.get?.(defaults, resolve));
-  };
+export async function pruneTitleCache(now = Date.now()): Promise<number> {
+  const all = await ext.storage.local.get(null);
+  const titles: Array<[string, number]> = [];
+  const remove: string[] = [];
+  for (const [key, value] of Object.entries(all)) {
+    if (!key.startsWith(TITLE_KEY_PREFIX)) continue;
+    if (!isStoredTitle(value) || isExpired(value, now)) remove.push(key);
+    else titles.push([key, value.at]);
+  }
+  if (titles.length > MAX_CACHED_TITLES) {
+    titles.sort((a, b) => a[1] - b[1]);
+    for (const [key] of titles.slice(0, titles.length - MAX_CACHED_TITLES)) remove.push(key);
+  }
+  if (remove.length > 0) await ext.storage.local.remove(remove);
+  return remove.length;
+}
 
-  const handleMessage = async (message: unknown): Promise<Record<string, unknown>> => {
-    await startup;
-    switch (messageType(message)) {
-      case 'restoreyt:get-settings': {
-        const stored = await readStoredSettings();
-        return asSettings(stored) as unknown as Record<string, unknown>;
-      }
-      case 'restoreyt:get-diagnostics':
-        return {
-          version: api?.runtime?.getManifest?.()?.version ?? 'unknown',
-          generatedAt: now(),
-          entries: diagnostics.snapshot(),
-          features: Object.fromEntries(startedFeatures.entries()),
-        };
-      case 'restoreyt:self-test':
-        return { ok: true, featureCount: startedFeatures.size };
-      default:
-        return { ok: false, error: 'Unknown message' };
+async function removeLegacyKeys(): Promise<void> {
+  await Promise.allSettled([
+    ext.storage.local.remove([...LEGACY_KEYS]),
+    ext.storage.sync.remove([...LEGACY_KEYS]),
+  ]);
+}
+
+async function housekeeping(): Promise<void> {
+  const settings = await loadSettings();
+  await syncRulesets(settings);
+  try {
+    await pruneTitleCache();
+  } catch {
+    // storage unavailable; try again next start
+  }
+}
+
+async function setBadge(tabId: number, count: number): Promise<void> {
+  const settings = await loadSettings();
+  const text = !settings.enabled ? '' : settings.badge && count > 0 ? (count > 999 ? '999+' : String(count)) : '';
+  try {
+    await ext.action.setBadgeBackgroundColor({ tabId, color: BADGE_COLOR });
+    if (typeof ext.action.setBadgeTextColor === 'function') await ext.action.setBadgeTextColor({ tabId, color: '#ffffff' });
+    await ext.action.setBadgeText({ tabId, text });
+  } catch {
+    // Tab closed before the update landed.
+  }
+}
+
+async function refreshDisabledState(settings: Settings): Promise<void> {
+  try {
+    await ext.action.setTitle({ title: settings.enabled ? 'restoreyt' : 'restoreyt (paused)' });
+    if (!settings.enabled || !settings.badge) {
+      const tabs = await ext.tabs.query({ url: ['*://www.youtube.com/*'] });
+      await Promise.allSettled(tabs.map(tab => (tab.id === undefined ? undefined : ext.action.setBadgeText({ tabId: tab.id, text: '' }))));
     }
-  };
-
-  return {
-    start() {
-      if (started) return;
-      started = true;
-      startup = restoreFeatureStates().catch(() => undefined);
-      api?.runtime?.onMessage?.addListener((message, _sender, sendResponse) => {
-        void handleMessage(message).then(
-          sendResponse,
-          () => sendResponse({ ok: false, error: 'Message handling failed' }),
-        );
-        return true;
-      });
-      api?.storage?.onChanged?.addListener((changes, areaName) => {
-        if (areaName === 'local') void fanOutSettings(changes);
-      });
-      record('background', 'info', 'Background runtime ready');
-    },
-    handleMessage,
-    async setFeatureState(feature, status) {
-      await startup;
-      startedFeatures.set(feature, status);
-      if (status === 'error') {
-        record(feature, 'error', 'Feature reported an error');
-        await setBadgeState('error');
-      } else if (status === 'disabled') {
-        record(feature, 'warning', 'Feature disabled');
-        await setBadgeState('disabled');
-      } else {
-        await setBadgeState('active');
-      }
-      await persistFeatureStates();
-    },
-    getFeatureState(feature) {
-      const status = startedFeatures.get(feature);
-      if (status === 'disabled') return { failures: 0, consecutiveFailures: 0, disabled: true, lastFailure: null };
-      if (status === 'error') return breaker.getState(feature);
-      return { failures: 0, consecutiveFailures: 0, disabled: false, lastFailure: null };
-    },
-  };
+  } catch {
+    // tabs permission-less query can fail on some builds; badge clears on next update anyway
+  }
 }
 
-if (typeof globalThis !== 'undefined' && resolveBrowserApi()?.runtime) {
-  createBackgroundController().start();
+const COUNTERS = ['titles', 'descriptions', 'thumbnails', 'audio', 'captions'] as const;
+let statsQueue: Promise<void> = Promise.resolve();
+
+/** Add to lifetime counters. Updates are chained so concurrent tabs never lose counts. */
+function addStats(delta: Partial<Record<(typeof COUNTERS)[number], number>>): Promise<void> {
+  statsQueue = statsQueue.then(async () => {
+    const stored = await ext.storage.local.get(LIFETIME_KEY);
+    const current = (stored[LIFETIME_KEY] ?? {}) as Partial<LifetimeStats>;
+    const next: LifetimeStats = { titles: 0, descriptions: 0, thumbnails: 0, audio: 0, captions: 0, since: current.since ?? Date.now() };
+    for (const counter of COUNTERS) {
+      const add = delta[counter];
+      next[counter] = (current[counter] ?? 0) + (typeof add === 'number' && add > 0 && add < 100_000 ? Math.floor(add) : 0);
+    }
+    await ext.storage.local.set({ [LIFETIME_KEY]: next });
+  }).catch(() => undefined);
+  return statsQueue;
 }
+
+ext.runtime.onInstalled.addListener(() => {
+  void removeLegacyKeys().then(housekeeping);
+});
+
+ext.runtime.onStartup.addListener(() => {
+  void housekeeping();
+});
+
+ext.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'sync' || !SETTING_KEYS.some(key => key in changes)) return;
+  void loadSettings().then(settings => {
+    void syncRulesets(settings);
+    void refreshDisabledState(settings);
+  });
+});
+
+ext.runtime.onMessage.addListener((message: unknown, sender) => {
+  const typed = message as RuntimeMessage | null;
+  if (typed?.type === MESSAGE.badge && sender.tab?.id !== undefined && typeof typed.count === 'number') {
+    void setBadge(sender.tab.id, typed.count);
+  } else if (typed?.type === MESSAGE.stats && typed.delta && typeof typed.delta === 'object') {
+    void addStats(typed.delta);
+  }
+  return undefined;
+});

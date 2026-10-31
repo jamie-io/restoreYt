@@ -2,40 +2,85 @@
   "manifest_version": 3,
   "name": "restoreyt",
   "author": "Jamie",
-  "version": "1.0.0",
-  "description": "Restore original YouTube titles, thumbnails, and descriptions when auto-translation appears",
-  "permissions": ["storage"],
+  "version": "2.0.0",
+  "description": "See YouTube videos the way they were uploaded: original titles, descriptions, thumbnails and audio. No auto-translation, no AI dubbing.",
+  "permissions": [
+    "storage",
+    "declarativeNetRequest"
+  ],
   "host_permissions": [
-    "*://*.youtube.com/*",
-    "*://*.youtube-nocookie.com/*"
+    "*://www.youtube.com/*",
+    "*://www.youtube-nocookie.com/*",
+    "*://i.ytimg.com/*"
   ],
   "background": {
-    "scripts": ["build/background.js"],
-    "service_worker": "build/background.js",
-    "type": "classic"
+    "service_worker": "build/background.js"
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "thumbnails",
+        "enabled": true,
+        "path": "rules/thumbnails.json"
+      }
+    ]
   },
   "content_scripts": [
     {
       "matches": [
-        "*://*.youtube.com/watch*",
-        "*://*.youtube.com/results*",
-        "*://*.youtube.com/shorts/*",
-        "*://*.youtube-nocookie.com/embed/*"
+        "*://www.youtube.com/*"
       ],
-      "js": ["build/content.js"],
+      "exclude_matches": [
+        "*://www.youtube.com/embed/*",
+        "*://www.youtube.com/live_chat*"
+      ],
+      "js": [
+        "build/page.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "*://www.youtube.com/*"
+      ],
+      "exclude_matches": [
+        "*://www.youtube.com/embed/*",
+        "*://www.youtube.com/live_chat*"
+      ],
+      "js": [
+        "build/content.js"
+      ],
+      "css": [
+        "build/content.css"
+      ],
       "run_at": "document_start"
     },
     {
-      "matches": ["*://*.youtube.com/embed/*"],
-      "js": ["build/content.js"],
+      "matches": [
+        "*://www.youtube.com/embed/*",
+        "*://www.youtube-nocookie.com/embed/*"
+      ],
+      "js": [
+        "build/page.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "*://www.youtube.com/embed/*",
+        "*://www.youtube-nocookie.com/embed/*"
+      ],
+      "js": [
+        "build/content.js"
+      ],
+      "css": [
+        "build/content.css"
+      ],
       "run_at": "document_start",
       "all_frames": true
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["build/main.js"],
-      "matches": ["*://*.youtube.com/*", "*://*.youtube-nocookie.com/*"]
     }
   ],
   "action": {
@@ -43,6 +88,7 @@
     "default_title": "restoreyt",
     "default_icon": {
       "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     }
@@ -51,15 +97,10 @@
     "page": "src/options/options.html",
     "open_in_tab": true
   },
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "restoreyt@example.invalid",
-      "strict_min_version": "115.0"
-    }
-  },
   "minimum_chrome_version": "121",
   "icons": {
     "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   }

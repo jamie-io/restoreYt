@@ -1,45 +1,32 @@
 #!/usr/bin/env python3
-"""Generate branded icons for the restoreyt extension.
+"""Render the extension icons from SVG.
 
-Requires ImageMagick (the `convert` or `magick` command).
+icons/icon.svg is drawn for 48 px and up; icons/icon-small.svg is pixel-fitted
+for 16 and 32 px. Requires rsvg-convert (librsvg).
+
 Run: python3 generate_icons.py
 """
 
 import subprocess
 import sys
 
-
-def generate_icon(size):
-    padding = size // 8
-    corners = size // 4
-    font_size = size // 2
-    out = f"icons/icon{size}.png"
-
-    cmd = [
-        "convert",
-        "-size", f"{size}x{size}", "xc:none",
-        "-fill", "#4CAF50",
-        "-draw", f"roundrectangle {padding},{padding} {size - padding},{size - padding} {corners},{corners}",
-        "-fill", "white",
-        "-font", "Adwaita-Mono-Bold",
-        "-pointsize", f"{font_size}",
-        "-gravity", "center",
-        "-annotate", "+0+0", "D",
-        out,
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"Error creating {out}: {result.stderr.strip()}", file=sys.stderr)
-        return False
-    print(f"Created {out}")
-    return True
+SIZES = {16: "icons/icon-small.svg", 32: "icons/icon-small.svg", 48: "icons/icon.svg", 128: "icons/icon.svg"}
 
 
-def main():
-    for size in [16, 48, 128]:
-        if not generate_icon(size):
-            sys.exit(1)
+def main() -> int:
+    for size, source in SIZES.items():
+        target = f"icons/icon{size}.png"
+        result = subprocess.run(
+            ["rsvg-convert", "-w", str(size), "-h", str(size), source, "-o", target],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print(f"Could not render {target}: {result.stderr.strip()}", file=sys.stderr)
+            return 1
+        print(f"Rendered {target}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -1,0 +1,148 @@
+@import '../ui/base.css';
+
+body {
+  font-size: var(--step-1);
+  line-height: 1.55;
+}
+
+.page {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 56px 24px 72px;
+}
+
+.intro .wordmark {
+  font-size: var(--step-4);
+  line-height: 1.1;
+}
+
+.lede {
+  max-width: 34em;
+  margin-top: 18px;
+  font-size: var(--step-2);
+  line-height: 1.4;
+}
+
+.master {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 28px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.block {
+  margin-top: 56px;
+}
+
+.block h2 {
+  font-size: var(--step-1);
+  font-weight: 700;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.example {
+  display: grid;
+  gap: 4px;
+  margin: 24px 0 8px;
+}
+
+.example .replaced {
+  font-size: var(--step-1);
+}
+
+.example .original {
+  font-size: var(--step-3);
+  line-height: 1.25;
+  font-weight: 700;
+  text-underline-offset: 7px;
+  text-decoration-thickness: 3px;
+}
+
+.example figcaption {
+  margin-top: 10px;
+  font-size: var(--step-0);
+  color: var(--graphite);
+}
+
+.features {
+  margin-top: 8px;
+}
+
+.feature {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 24px;
+  align-items: start;
+  padding: 18px 0;
+  cursor: pointer;
+}
+
+.feature-name {
+  font-weight: 700;
+}
+
+.feature-detail {
+  display: block;
+  max-width: 36em;
+  margin-top: 4px;
+  color: var(--graphite);
+  font-size: var(--step-0);
+}
+
+.feature .switch {
+  margin-top: 3px;
+}
+
+.is-paused #features {
+  opacity: 0.55;
+}
+
+.prose {
+  max-width: 36em;
+  margin-top: 16px;
+}
+
+.muted {
+  color: var(--graphite);
+  font-size: var(--step-0);
+}
+
+.muted:empty {
+  display: none;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.button.is-confirming {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.button.is-confirming:hover {
+  background: var(--danger);
+  color: var(--paper);
+}
+
+.foot {
+  margin-top: 64px;
+  color: var(--graphite);
+  font-size: var(--step-0);
+}
+
+@media (max-width: 520px) {
+  .page {
+    padding: 32px 16px 48px;
+  }
+
+  .example .original {
+    font-size: var(--step-2);
+  }
+}

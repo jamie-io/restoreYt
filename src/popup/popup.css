@@ -1,0 +1,127 @@
+@import '../ui/base.css';
+
+body {
+  width: 372px;
+  letter-spacing: -0.01em;
+}
+
+.head {
+  padding: 16px 16px 14px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.head .wordmark {
+  font-size: var(--step-2);
+  line-height: 1.2;
+}
+
+.status {
+  margin-top: 10px;
+  color: var(--graphite);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 10px;
+}
+
+.report {
+  padding: 14px 16px 2px;
+}
+
+.summary {
+  max-width: 34em;
+}
+
+.log {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.entry {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.entry-kind {
+  font-size: var(--step--1);
+  color: var(--graphite);
+}
+
+.entry .replaced,
+.entry .original {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.entry .replaced {
+  font-size: var(--step--1);
+  -webkit-line-clamp: 1;
+}
+
+.more {
+  margin-top: 12px;
+  font-size: var(--step--1);
+}
+
+.features {
+  margin-top: 12px;
+  padding: 8px 16px 10px;
+  border-top: 1px solid var(--hairline);
+}
+
+.report[hidden] + .features {
+  margin-top: 0;
+  border-top: 0;
+}
+
+.toggles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 28px;
+}
+
+.toggle {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  cursor: pointer;
+}
+
+.toggle-text {
+  min-width: 0;
+}
+
+.is-paused .toggles {
+  opacity: 0.55;
+}
+
+.foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--hairline);
+  font-size: var(--step--1);
+}
+
+.version {
+  color: var(--graphite);
+}

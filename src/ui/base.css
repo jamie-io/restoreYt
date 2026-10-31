@@ -1,0 +1,243 @@
+/*
+ * restoreyt design tokens.
+ * Paper and ink with a blue editing pencil. Corrections are shown the way a
+ * proofreader marks them: YouTube's replacement struck through, the creator's
+ * original kept with "stet" dots underneath.
+ */
+
+@font-face {
+  font-family: 'Quattro';
+  src: url('/fonts/iAWriterQuattroS-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Quattro';
+  src: url('/fonts/iAWriterQuattroS-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+:root {
+  color-scheme: light dark;
+  --paper: #eef1ef;
+  --ink: #17212b;
+  --graphite: #5c6770;
+  --hairline: #cfd6d4;
+  --pencil: #1d5fb4;
+  --nonphoto: #a7dcec;
+  --struck: #87919a;
+  --track-off: #dfe4e2;
+  --knob: #17212b;
+  --danger: #a3361f;
+
+  --face: 'Quattro', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --step--1: 12px;
+  --step-0: 13.5px;
+  --step-1: 15px;
+  --step-2: 19px;
+  --step-3: 26px;
+  --step-4: 34px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #12171c;
+    --ink: #e2e7e5;
+    --graphite: #98a3a9;
+    --hairline: #2b343b;
+    --pencil: #86baf0;
+    --nonphoto: #2f6c82;
+    --struck: #6d777e;
+    --track-off: #252d33;
+    --knob: #e2e7e5;
+    --danger: #e98a72;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--face);
+  font-size: var(--step-0);
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+h3,
+p,
+ol,
+ul {
+  margin: 0;
+}
+
+ol,
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--pencil);
+}
+
+:focus-visible {
+  outline: 2px solid var(--pencil);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Wordmark: the name with stet dots, the proofreader's "let it stand". */
+.wordmark {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-decoration: underline dotted var(--pencil);
+  text-decoration-thickness: 0.14em;
+  text-underline-offset: 0.28em;
+}
+
+/* Corrections */
+.replaced {
+  color: var(--struck);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.original {
+  color: var(--ink);
+  text-decoration: underline dotted var(--pencil);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  text-decoration-skip-ink: none;
+}
+
+/* Switch: a real checkbox with role="switch", drawn by the sibling span. */
+.switch {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 36px;
+  height: 20px;
+}
+
+.switch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.switch span {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: var(--track-off);
+  box-shadow: inset 0 0 0 1.5px var(--hairline);
+  transition: background-color 120ms ease;
+}
+
+.switch span::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--knob);
+  transition: transform 140ms ease;
+}
+
+.switch input:checked + span {
+  background: var(--nonphoto);
+  box-shadow: inset 0 0 0 1.5px var(--pencil);
+}
+
+.switch input:checked + span::before {
+  transform: translateX(16px);
+}
+
+.switch input:focus-visible + span {
+  outline: 2px solid var(--pencil);
+  outline-offset: 2px;
+}
+
+.switch input:disabled {
+  cursor: not-allowed;
+}
+
+.switch input:disabled + span {
+  opacity: 0.45;
+}
+
+.text-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--pencil);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.text-button:hover {
+  text-decoration-thickness: 2px;
+}
+
+.button {
+  padding: 6px 12px;
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

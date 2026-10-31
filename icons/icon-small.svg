@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Pixel-fitted variant of icon.svg for 16 and 32 px. -->
+  <rect x="0" y="0" width="32" height="32" rx="7" fill="#17212b"/>
+  <path d="M11.5 6.5 L11.5 19.5 L22.5 13 Z" fill="#eef1ef" stroke="#eef1ef" stroke-width="1.5" stroke-linejoin="round"/>
+  <rect x="7" y="23" width="4" height="4" rx="2" fill="#a7dcec"/>
+  <rect x="14" y="23" width="4" height="4" rx="2" fill="#a7dcec"/>
+  <rect x="21" y="23" width="4" height="4" rx="2" fill="#a7dcec"/>
+</svg>
