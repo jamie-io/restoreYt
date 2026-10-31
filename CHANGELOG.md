@@ -12,6 +12,7 @@
 - Split Chrome and Firefox manifests so Chrome no longer warns about background.scripts
 - Redesigned popup with per-page change log, new settings page and new icon
 - Replaced evidence-gate and spike tooling with unit, browser and live YouTube tests
+- Removed GitHub Actions workflows and Dependabot config
 
 ## Unreleased - 2026-09-24
 

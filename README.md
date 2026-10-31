@@ -89,7 +89,7 @@ npm run screenshots  # popup and settings page, light and dark
 npm run watch        # rebuild on change
 ```
 
-`test:live` is a maintainer tool, not part of CI: YouTube changes markup, runs ads and A/B tests. Run it after YouTube redesigns or before a release. It uses a fresh logged-out profile and no account.
+`test:live` is a maintainer tool: YouTube changes markup, runs ads and A/B tests. Run it after YouTube redesigns or before a release. It uses a fresh logged-out profile and no account.
 
 ## Limitations
 
