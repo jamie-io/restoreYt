@@ -12,15 +12,13 @@
 - Split Chrome and Firefox manifests so Chrome no longer warns about background.scripts
 - Redesigned popup with per-page change log, new settings page and new icon
 - Replaced evidence-gate and spike tooling with unit, browser and live YouTube tests
-- Removed GitHub Actions workflows and Dependabot config
+- Removed GitHub Actions workflows, Dependabot config and unused tooling
 
-## Unreleased - 2026-09-24
+## 2026-09-24
 
-### Changed
-
-- Renamed product to restoreyt.
-- Added strict TypeScript/esbuild platform and core layers.
-- Replaced DNR thumbnail redirects with DOM fallback chain.
-- Added hermetic Chromium extension tests and sanitized Phase 0 evidence tooling.
-- Removed chapters, avatars, banners, audio, and channel branding claims until evidence gates pass.
-- Updated manifest, package, README, store copy, and evidence report to match shipped behavior.
+- Renamed product to restoreyt
+- Added strict TypeScript/esbuild platform and core layers
+- Replaced DNR thumbnail redirects with DOM fallback chain
+- Added hermetic Chromium extension tests and sanitized evidence tooling
+- Removed chapters, avatars, banners, audio and channel branding claims until verified
+- Updated manifest, package, README, store copy and evidence report to match shipped behavior

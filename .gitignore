@@ -1,87 +1,30 @@
-# Node.js
+# Dependencies
 node_modules/
-.npm
-.npmrc
 
-# Python
+# Build output
+build/
+.dist/
+
+# Written by Chrome into unpacked extensions (indexed rulesets)
+_metadata/
+
+# Test output
+test-results/
+playwright-results/
+coverage/
+
+# Python cache (generate_icons.py)
 __pycache__/
-*.pyc
-.pytest_cache/
 
-# IDE
+# Editors and OS files
 .vscode/
 .idea/
 *.swp
-*.swo
-
-# OS
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-logs/
-
-# Test artifacts
-playwright-results/
-test-results/
-
-# Coverage
-coverage/
-.nyc_output/
-
-# Build artifacts
-.dist/
-build/
-
-# Environment
-.env
-.env.local
-.env.development
-.env.test
-.env.production
-
-# Cache
-*~
-*.bak
-*.tmp
-
-# Extension specific
-*.crx
-*.pem
-.icons
-
-# Temporary files
-*.temp
-*.backup
-
-# Runtime data
-data/
-
-# macOS
-.DS_Store
-.AppleDouble
-Let'sEncrypt
-
-# Windows
-Thumbs.db
-Desktop.ini
-
-# Others
-*.log
-tmp/
-logs/
-*.swp
-
-# Yarn
-.yarn-integrity
-.pnp.*
-
-# Chrome extension metadata
-_metadata/
-
-# .env files
+# Local environment and signing keys
 .env
 .env.*
-!.env.example
-
+*.pem
+*.crx
